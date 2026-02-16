@@ -1,0 +1,43 @@
+[project]
+name = "vault-ai-backend"
+version = "0.1.0"
+description = "Vault AI Systems — FastAPI gateway for vLLM inference"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "pydantic-settings>=2.7.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20.0",
+    "structlog>=24.4.0",
+    "typer>=0.15.0",
+    "py3nvml>=0.2.7",
+    "pyyaml>=6.0.2",
+    "rich>=13.9.0",
+]
+
+[project.scripts]
+vault-admin = "app.cli:cli_app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

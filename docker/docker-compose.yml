@@ -1,0 +1,43 @@
+services:
+  mock-vllm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mock-vllm
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      VLLM_BASE_URL: http://mock-vllm:8001
+      VAULT_SECRET_KEY: dev-secret-change-in-production
+      VAULT_DB_URL: sqlite+aiosqlite:///app/data/vault.db
+      VAULT_CORS_ORIGINS: "*"
+    depends_on:
+      mock-vllm:
+        condition: service_healthy
+    volumes:
+      - vault-data:/app/data
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - api-gateway
+
+volumes:
+  vault-data:
+  caddy-data:

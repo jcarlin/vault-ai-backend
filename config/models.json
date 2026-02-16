@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "id": "qwen2.5-32b-awq",
+      "name": "Qwen 2.5 32B (AWQ Quantized)",
+      "parameters": "32B",
+      "quantization": "AWQ 4-bit",
+      "context_window": 32768,
+      "vram_required_gb": 20,
+      "description": "Best balance of capability and speed. Recommended for most use cases."
+    },
+    {
+      "id": "llama-3.3-8b-q4",
+      "name": "Llama 3.3 8B (4-bit)",
+      "parameters": "8B",
+      "quantization": "AWQ 4-bit",
+      "context_window": 131072,
+      "vram_required_gb": 6,
+      "description": "Fast model for simple tasks. Lower capability but 4x faster."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+# Gitleaks config — extends built-in rules with Vault-specific patterns
+title = "Vault AI Backend — Secret Detection"
+
+[extend]
+# Inherit all default rules (AWS, GCP, GitHub tokens, generic secrets, etc.)
+useDefault = true
+
+# Vault-specific API key pattern
+[[rules]]
+id = "vault-api-key"
+description = "Vault AI API key"
+regex = '''vault_sk_[0-9a-f]{20,}'''
+keywords = ["vault_sk_"]
+entropy = 3.0
+
+# Catch .env files that slip through .gitignore
+[[rules]]
+id = "dotenv-file"
+description = "Environment file with potential secrets"
+path = '''\.env$'''
+regex = '''(?i)(key|secret|password|token|credential)\s*=\s*.+'''
+
+[allowlist]
+paths = [
+  '''.env\.example$''',
+  '''tests/''',
+  '''\.gitleaks\.toml$''',
+  '''CLAUDE\.md$''',
+  '''PRD\.md$''',
+  '''vault-api-spec\.md$''',
+]

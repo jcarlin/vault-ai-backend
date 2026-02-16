@@ -1,0 +1,5 @@
+strategy: replica
+models:
+  - id: qwen2.5-32b-awq
+    gpus: [0, 1, 2, 3]
+    mode: replica

@@ -1,0 +1,21 @@
+{
+	# Self-signed TLS for air-gapped deployments
+	auto_https disable_redirects
+}
+
+:443 {
+	tls internal
+
+	reverse_proxy api-gateway:8000
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
