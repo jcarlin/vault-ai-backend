@@ -1,6 +1,6 @@
 # Vault AI Backend — Product Requirements Document
 
-> **Scope note:** This document is the full backend design reference covering all planned stages. For what's being built *right now*, see `CLAUDE.md` in this directory (Rev 1: 3 endpoints). For the staged delivery plan, see `ROADMAP.md` at the project root.
+> **Scope note:** This document is the full backend design reference covering all planned stages. For what's currently built, see `CLAUDE.md` in this directory (Rev 2: 31 endpoints, 97 tests). For the staged delivery plan, see `ROADMAP.md` at the project root.
 
 ---
 
@@ -289,19 +289,19 @@ The allocation is set via API (Stage 5) or config file and requires:
 
 ## API Specification
 
-### Rev 1 Endpoints (Stage 2 — 3 endpoints)
+### Rev 1 Endpoints (Stage 2 — 3 endpoints) ✅
 
 ```
-POST /v1/chat/completions
+POST /v1/chat/completions                    ✅ Rev 1
   - OpenAI-compatible format (industry-standard)
   - SSE streaming response
   - Request body: { model, messages, temperature, max_tokens, stream }
 
-GET  /v1/models
+GET  /v1/models                              ✅ Rev 1
   - List available models from local manifest file
   - Response: { data: [{ id, object, owned_by }] }
 
-GET  /vault/health
+GET  /vault/health                           ✅ Rev 1
   - System health: vLLM status, GPU count, uptime
   - Response: { status, services: { vllm, gateway }, gpu_count, uptime_seconds }
 ```
@@ -322,24 +322,28 @@ DELETE /vault/models/{model_id}         # Delete model from disk
 
 ```
 GET  /vault/system/health              # Detailed system + service status
-GET  /vault/system/gpu                 # Per-GPU: utilization, VRAM, temp, power
-GET  /vault/system/resources           # CPU, RAM, disk, uptime
+GET  /vault/system/gpu                 # Per-GPU: utilization, VRAM, temp, power     ✅ Rev 2
+GET  /vault/system/resources           # CPU, RAM, disk, uptime                      ✅ Rev 2
 GET  /vault/system/inference           # Requests/min, latency, tokens/sec, queue
 GET  /vault/system/services            # Status of all managed services
 POST /vault/system/services/{name}/restart  # Restart specific service
 GET  /vault/system/logs                # Paginated logs, filterable
 WS   /ws/system                        # Live system metrics push
+
+# Added in Rev 2 (not in original Stage 3 spec):
+GET  /vault/insights                   # Usage analytics (time-range filtering)      ✅ Rev 2
+GET  /vault/activity                   # Recent activity feed from audit log         ✅ Rev 2
 ```
 
 ### Stage 3 Additions — Conversations & History
 
 ```
-GET    /vault/conversations            # List user's conversations (paginated)
-POST   /vault/conversations            # Create conversation
-GET    /vault/conversations/{id}       # Full conversation with messages
-PUT    /vault/conversations/{id}       # Update metadata
-DELETE /vault/conversations/{id}       # Delete
-POST   /vault/conversations/{id}/messages  # Add message, trigger inference
+GET    /vault/conversations            # List user's conversations (paginated)       ✅ Rev 2
+POST   /vault/conversations            # Create conversation                         ✅ Rev 2
+GET    /vault/conversations/{id}       # Full conversation with messages             ✅ Rev 2
+PUT    /vault/conversations/{id}       # Update metadata                             ✅ Rev 2
+DELETE /vault/conversations/{id}       # Delete                                      ✅ Rev 2
+POST   /vault/conversations/{id}/messages  # Add message, trigger inference          ✅ Rev 2
 GET    /vault/conversations/{id}/export    # Export as JSON or Markdown
 ```
 
@@ -347,10 +351,10 @@ GET    /vault/conversations/{id}/export    # Export as JSON or Markdown
 
 ```
 # API Key Management
-GET    /vault/admin/keys               # List keys (prefix, label, scope)
-POST   /vault/admin/keys               # Generate new key
+GET    /vault/admin/keys               # List keys (prefix, label, scope)            ✅ Rev 2
+POST   /vault/admin/keys               # Generate new key                            ✅ Rev 2
 PUT    /vault/admin/keys/{key_id}      # Update key metadata
-DELETE /vault/admin/keys/{key_id}      # Revoke key
+DELETE /vault/admin/keys/{key_id}      # Revoke key                                  ✅ Rev 2
 
 # Audit Log
 GET    /vault/admin/audit              # Query audit log (filterable, paginated)
@@ -360,10 +364,14 @@ GET    /vault/admin/audit/stats        # Aggregate stats
 # System Configuration
 GET    /vault/admin/config             # Current config
 PUT    /vault/admin/config             # Update config
-GET    /vault/admin/config/network     # Network settings
-PUT    /vault/admin/config/network     # Update network
+GET    /vault/admin/config/network     # Network settings                            ✅ Rev 2
+PUT    /vault/admin/config/network     # Update network                              ✅ Rev 2
 GET    /vault/admin/config/tls         # TLS cert info
 POST   /vault/admin/config/tls        # Upload custom cert
+
+# Added in Rev 2 (not in original Stage 3 spec):
+GET    /vault/admin/config/system      # System settings (timezone, language, etc.)  ✅ Rev 2
+PUT    /vault/admin/config/system      # Update system settings                      ✅ Rev 2
 ```
 
 ### Stage 3 Additions — Updates & First-Boot
@@ -418,11 +426,13 @@ PUT    /vault/collections/{id}         # Update collection
 ### Stage 4 Additions — User Management (LDAP)
 
 ```
-GET    /vault/admin/users              # List users
-POST   /vault/admin/users              # Create user
-PUT    /vault/admin/users/{id}         # Update permissions
-DELETE /vault/admin/users/{id}         # Deactivate
+GET    /vault/admin/users              # List users                                  ✅ Rev 2 (pulled forward)
+POST   /vault/admin/users              # Create user                                 ✅ Rev 2 (pulled forward)
+PUT    /vault/admin/users/{id}         # Update permissions                          ✅ Rev 2 (pulled forward)
+DELETE /vault/admin/users/{id}         # Deactivate                                  ✅ Rev 2 (pulled forward)
 ```
+
+> **Note:** User CRUD was pulled forward to Rev 2 to support the frontend settings UI. LDAP/SSO integration remains Stage 4.
 
 ### Stage 4 Additions — WebSockets
 
@@ -436,16 +446,23 @@ WS /api/ws/updates                     # Update progress
 ### Stage 5 Additions — Training
 
 ```
-POST   /vault/training/jobs            # Submit fine-tuning job
-GET    /vault/training/jobs            # List all jobs
-GET    /vault/training/jobs/{id}       # Job detail (progress, loss, ETA)
-POST   /vault/training/jobs/{id}/cancel    # Cancel job
+POST   /vault/training/jobs            # Submit fine-tuning job                      ✅ Rev 2 (DB records only)
+GET    /vault/training/jobs            # List all jobs                               ✅ Rev 2 (DB records only)
+GET    /vault/training/jobs/{id}       # Job detail (progress, loss, ETA)            ✅ Rev 2 (DB records only)
+POST   /vault/training/jobs/{id}/cancel    # Cancel job                              ✅ Rev 2 (state machine)
 GET    /vault/training/adapters        # List trained LoRA adapters
 POST   /vault/training/adapters/{id}/activate    # Load adapter onto model
 POST   /vault/training/adapters/{id}/deactivate  # Remove adapter
 DELETE /vault/training/adapters/{id}   # Delete adapter from disk
 POST   /vault/training/validate        # Dry-run validation
+
+# Added in Rev 2 (not in original Stage 5 spec):
+DELETE /vault/training/jobs/{id}       # Delete job record                           ✅ Rev 2
+POST   /vault/training/jobs/{id}/pause     # Pause job                              ✅ Rev 2 (state machine)
+POST   /vault/training/jobs/{id}/resume    # Resume job                             ✅ Rev 2 (state machine)
 ```
+
+> **Note:** Training job CRUD and state machine (queued/running/paused/cancelled/completed/failed) implemented in Rev 2 as DB records. Real Axolotl/LoRA training runner wired in at Stage 5.
 
 ### Stage 5 Additions — Evaluation
 
@@ -469,35 +486,35 @@ DELETE /vault/admin/devmode/jupyter    # Shut down JupyterHub
 
 ### Endpoint Count Summary
 
-| Domain | Count | Stage | Priority |
-|--------|-------|-------|----------|
-| Inference (Industry-Standard API) | 2 | Rev 1 | Now |
-| Health | 1 | Rev 1 | Now |
-| Model Management | 7 | Stage 3 | Next |
-| Conversations & History | 7 | Stage 3 | Next |
-| System Health & Monitoring | 8 | Stage 3 | Next |
-| Administration | 14 | Stage 3 | Next |
-| Updates & Maintenance | 7 | Stage 3 | Next |
-| First-Boot | 7 | Stage 3 | Next |
-| Quarantine | 9 | Stage 3 | Next |
-| Documents & RAG | 8 | Stage 4 | Later |
-| User Management | 4 | Stage 4 | Later |
-| WebSockets | 4 | Stage 4 | Later |
-| Training & Fine-Tuning | 9 | Stage 5 | Later |
-| Evaluation | 5 | Stage 5 | Later |
-| Developer Mode | 5 | Stage 6 | Later |
-| **Total** | **97** | | |
+| Domain | Count | Built | Stage | Priority |
+|--------|-------|-------|-------|----------|
+| Inference (Industry-Standard API) | 2 | 2 ✅ | Rev 1 | Done |
+| Health | 1 | 1 ✅ | Rev 1 | Done |
+| Conversations & History | 7 | 6 ✅ | Rev 2 | Done (export remaining) |
+| System Health & Monitoring | 8 | 2 ✅ | Rev 2 partial | 2 done + 2 bonus (insights, activity) |
+| Administration | 14 | 7 ✅ | Rev 2 partial | Keys 3/4, config 4/6, audit 0/3 |
+| User Management | 4 | 4 ✅ | Rev 2 | Done (pulled forward) |
+| Training & Fine-Tuning | 9 | 7 ✅ | Rev 2 partial | Job CRUD + state machine, adapters later |
+| Model Management | 7 | 0 | Stage 3 | Next |
+| Updates & Maintenance | 7 | 0 | Stage 3 | Next |
+| First-Boot | 7 | 0 | Stage 3 | Next |
+| Quarantine | 9 | 0 | Stage 3 | Next |
+| Documents & RAG | 8 | 0 | Stage 4 | Later |
+| WebSockets | 4 | 0 | Stage 4 | Later |
+| Evaluation | 5 | 0 | Stage 5 | Later |
+| Developer Mode | 5 | 0 | Stage 6 | Later |
+| **Total** | **97** | **31** | | |
 
-**Rev 1: 3 endpoints** → Stage 3: ~59 → Stage 4: +16 → Stage 5: +14 → Stage 6: +5
+**Rev 1: 3 endpoints** → **Rev 2: 31 endpoints (97 tests)** → Stage 3: ~59 → Stage 4: +16 → Stage 5: +14 → Stage 6: +5
 
 ---
 
 ## Data Models
 
-### Rev 1: SQLite Schema
+### Rev 1–2: SQLite Schema (via SQLAlchemy ORM)
 
 ```sql
--- API keys (Rev 1)
+-- API keys (Rev 1) ✅
 CREATE TABLE api_keys (
     id TEXT PRIMARY KEY,            -- UUID
     key_hash TEXT NOT NULL UNIQUE,  -- SHA-256 of full key
@@ -507,6 +524,81 @@ CREATE TABLE api_keys (
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     last_used_at TEXT
+);
+
+-- Users (Rev 2 — pulled forward from Stage 4) ✅
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,            -- UUID
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    role TEXT DEFAULT 'user',       -- admin/user/viewer
+    status TEXT DEFAULT 'active',   -- active/inactive
+    created_at DATETIME,
+    last_active DATETIME
+);
+
+-- Conversations (Rev 2 — pulled forward from Stage 3) ✅
+CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,            -- UUID
+    title TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id),
+    created_at DATETIME,
+    updated_at DATETIME
+);
+
+-- Messages (Rev 2) ✅
+CREATE TABLE messages (
+    id TEXT PRIMARY KEY,            -- UUID
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    thinking_content TEXT,
+    thinking_duration_ms INTEGER,
+    tokens_input INTEGER,
+    tokens_output INTEGER,
+    timestamp DATETIME
+);
+
+-- Training jobs (Rev 2 — DB records, real training at Stage 5) ✅
+CREATE TABLE training_jobs (
+    id TEXT PRIMARY KEY,            -- UUID
+    name TEXT NOT NULL,
+    status TEXT DEFAULT 'queued',   -- queued/running/paused/cancelled/completed/failed
+    progress REAL DEFAULT 0.0,
+    model TEXT NOT NULL,
+    dataset TEXT NOT NULL,
+    config_json TEXT,               -- JSON: epochs, batchSize, learningRate, etc.
+    metrics_json TEXT,              -- JSON: loss, accuracy, tokensProcessed, etc.
+    resource_json TEXT,             -- JSON: gpuCount, gpuMemory, estimatedTime, etc.
+    error TEXT,
+    user_id TEXT REFERENCES users(id),
+    started_at DATETIME,
+    completed_at DATETIME,
+    created_at DATETIME
+);
+
+-- Audit log (Rev 2 — middleware writes on every request) ✅
+CREATE TABLE audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME,
+    action TEXT NOT NULL,
+    method TEXT,
+    path TEXT,
+    user_key_prefix TEXT,
+    model TEXT,
+    status_code INTEGER,
+    latency_ms REAL,
+    tokens_input INTEGER,
+    tokens_output INTEGER,
+    details TEXT
+);
+
+-- System config (Rev 2 — key-value store for network/system settings) ✅
+CREATE TABLE system_config (
+    key TEXT PRIMARY KEY,           -- e.g., 'network.hostname', 'system.timezone'
+    value TEXT NOT NULL,
+    updated_at DATETIME
 );
 ```
 
@@ -613,22 +705,25 @@ CREATE TABLE audit_log (
 vault-ai-backend/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                 # FastAPI application entry
-│   ├── config.py               # Pydantic settings (env vars)
-│   ├── dependencies.py         # Dependency injection
+│   ├── main.py                 # FastAPI application entry          [Rev 1]
+│   ├── config.py               # Pydantic settings (env vars)       [Rev 1]
+│   ├── dependencies.py         # Dependency injection               [Rev 1]
 │   │
 │   ├── api/
 │   │   └── v1/
 │   │       ├── __init__.py
-│   │       ├── router.py       # Main router aggregator
-│   │       ├── chat.py         # POST /v1/chat/completions      [Rev 1]
-│   │       ├── models.py       # GET /v1/models                 [Rev 1]
-│   │       └── health.py       # GET /vault/health              [Rev 1]
+│   │       ├── router.py       # Main router aggregator (9 routers) [Rev 2]
+│   │       ├── chat.py         # POST /v1/chat/completions          [Rev 1]
+│   │       ├── models.py       # GET /v1/models                     [Rev 1]
+│   │       ├── health.py       # GET /vault/health                  [Rev 1]
+│   │       ├── conversations.py # /vault/conversations/* (6 routes) [Rev 2]
+│   │       ├── training.py     # /vault/training/* (7 routes)       [Rev 2]
+│   │       ├── admin.py        # /vault/admin/* (11 routes)         [Rev 2]
+│   │       ├── system.py       # /vault/system/* (2 routes)         [Rev 2]
+│   │       ├── insights.py     # /vault/insights (1 route)          [Rev 2]
+│   │       └── activity.py     # /vault/activity (1 route)          [Rev 2]
 │   │       # --- Stage 3+ additions ---
 │   │       # ├── model_mgmt.py   # /vault/models/*
-│   │       # ├── conversations.py # /vault/conversations/*
-│   │       # ├── admin.py        # /vault/admin/*
-│   │       # ├── cluster.py      # /vault/system/*
 │   │       # ├── uploads.py      # /vault/quarantine/*
 │   │       # ├── updates.py      # /vault/updates/*
 │   │       # └── setup.py        # /vault/setup/*
@@ -638,13 +733,16 @@ vault-ai-backend/
 │   │   ├── inference/
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py         # Abstract InferenceBackend interface
-│   │   │   └── vllm_client.py  # httpx async client to vLLM    [Rev 1]
-│   │   ├── auth.py             # API key validation             [Rev 1]
-│   │   └── monitoring.py       # GPU metrics (py3nvml)          [Rev 1 basic]
+│   │   │   └── vllm_client.py  # httpx async client to vLLM        [Rev 1]
+│   │   ├── auth.py             # API key validation                 [Rev 1]
+│   │   ├── monitoring.py       # GPU metrics (py3nvml)              [Rev 1]
+│   │   ├── conversations.py    # Conversation CRUD                  [Rev 2]
+│   │   ├── training.py         # Training job state machine         [Rev 2]
+│   │   ├── admin.py            # Users, keys, config management     [Rev 2]
+│   │   └── system.py           # CPU/RAM/disk metrics (psutil)      [Rev 2]
 │   │   # --- Stage 3+ additions ---
 │   │   # ├── training/
-│   │   # │   ├── job_manager.py
-│   │   # │   ├── axolotl_runner.py
+│   │   # │   ├── axolotl_runner.py   # Real training (Stage 5)
 │   │   # │   └── checkpoint.py
 │   │   # ├── quarantine/
 │   │   # │   ├── pipeline.py
@@ -658,16 +756,22 @@ vault-ai-backend/
 │   │   ├── __init__.py
 │   │   ├── chat.py             # [Rev 1]
 │   │   ├── models.py           # [Rev 1]
-│   │   └── health.py           # [Rev 1]
+│   │   ├── health.py           # [Rev 1]
+│   │   ├── conversations.py    # [Rev 2]
+│   │   ├── training.py         # [Rev 2]
+│   │   ├── admin.py            # [Rev 2]
+│   │   ├── system.py           # [Rev 2]
+│   │   ├── insights.py         # [Rev 2]
+│   │   └── activity.py         # [Rev 2]
 │   │
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── security.py         # API key hashing, validation    [Rev 1]
-│   │   ├── exceptions.py       # Custom exception classes        [Rev 1]
-│   │   ├── middleware.py        # CORS, auth, request logging    [Rev 1]
-│   │   └── database.py         # SQLite + SQLAlchemy async      [Rev 1]
+│   │   ├── security.py         # API key hashing, validation       [Rev 1]
+│   │   ├── exceptions.py       # Custom exception classes           [Rev 1]
+│   │   ├── middleware.py        # Auth, request logging + audit     [Rev 1+2]
+│   │   └── database.py         # SQLite + SQLAlchemy (7 models)    [Rev 1+2]
 │   │
-│   ├── cli.py                  # vault-admin CLI                 [Rev 1]
+│   ├── cli.py                  # vault-admin CLI                    [Rev 1]
 │   │
 │   └── workers/                # Stage 5+
 │       ├── __init__.py
@@ -677,8 +781,16 @@ vault-ai-backend/
 │   ├── conftest.py
 │   ├── mocks/
 │   │   └── fake_vllm.py        # Mock vLLM server for local dev
-│   ├── unit/
-│   └── integration/
+│   ├── unit/                   # 7 unit tests                       [Rev 1]
+│   └── integration/            # 90 integration tests               [Rev 1+2]
+│       ├── test_chat_endpoint.py
+│       ├── test_models_endpoint.py
+│       ├── test_health_endpoint.py
+│       ├── test_conversations_endpoint.py    # [Rev 2] 14 tests
+│       ├── test_training_endpoint.py         # [Rev 2] 10 tests
+│       ├── test_admin_endpoint.py            # [Rev 2] 13 tests
+│       ├── test_system_endpoint.py           # [Rev 2] 4 tests
+│       └── test_insights_endpoint.py         # [Rev 2] 6 tests
 │
 ├── config/
 │   ├── models.json             # Model manifest
@@ -707,6 +819,7 @@ vault-ai-backend/
 │
 ├── pyproject.toml
 ├── CLAUDE.md                   # Backend coding guide + current scope
+├── vault-api-spec.md           # API endpoint specification
 └── PRD.md                      # This file — full design reference
 ```
 
@@ -819,12 +932,24 @@ class ChatUser(HttpUser):
 ## Success Criteria
 
 ### Rev 1 (Stage 2)
-- [ ] 3 API endpoints operational with auth
-- [ ] Streaming chat completions working end-to-end
-- [ ] Request logging captures every request
-- [ ] Mock vLLM enables development without GPU
-- [ ] Chat UI connected and functional
+- [x] 3 API endpoints operational with auth
+- [x] Streaming chat completions working end-to-end
+- [x] Request logging captures every request
+- [x] Mock vLLM enables development without GPU
+- [ ] Chat UI connected and functional (frontend wiring in progress)
 - [ ] Pilot customer using the system
+
+### Rev 2 (Frontend API Support)
+- [x] 28 additional endpoints (31 total)
+- [x] 97 tests passing (50 Rev 1 + 47 Rev 2)
+- [x] Conversations CRUD with messages
+- [x] Training job records with state machine
+- [x] User management CRUD
+- [x] API key management via API (moved from CLI-only)
+- [x] System metrics (CPU, RAM, disk, GPU via psutil/py3nvml)
+- [x] Usage analytics (insights) and activity feed from audit log
+- [x] Network and system configuration endpoints
+- [x] AuditLog middleware writes every request to DB
 
 ### Stage 3
 - [ ] Full 59-endpoint API operational

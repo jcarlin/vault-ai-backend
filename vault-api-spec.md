@@ -1,8 +1,8 @@
 # Vault Cube — API Endpoint Specification
 
-**Version:** 0.2 (Draft — Updated with Quarantine, Training, Eval, Developer Mode)
+**Version:** 0.3 (Updated with Rev 2 completion markers)
 **Date:** February 2026
-**Status:** Scoping / Pre-Development
+**Status:** Rev 2 shipped — 31 endpoints, 97 tests. See `CLAUDE.md` for current scope.
 
 ---
 
@@ -20,13 +20,13 @@ All client interactions with the Vault Cube pass through a single FastAPI gatewa
 
 These endpoints follow the de facto industry-standard LLM API format (originated by OpenAI, now adopted universally by Anthropic, Google, and every major open-source inference engine). Customers can use any compatible client library by swapping the base URL — no vendor lock-in.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/v1/chat/completions` | Chat completion (streaming + non-streaming). Proxied to vLLM. Core inference endpoint. | User |
-| POST | `/v1/completions` | Legacy text completion. Proxied to vLLM. | User |
-| POST | `/v1/embeddings` | Generate text embeddings (if embedding model loaded). | User |
-| GET | `/v1/models` | List available models. Returns model ID, size, quantization, status (loaded/available). | User |
-| GET | `/v1/models/{model_id}` | Model details: parameters, context window, VRAM usage, capabilities. | User |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| POST | `/v1/chat/completions` | Chat completion (streaming + non-streaming). Proxied to vLLM. Core inference endpoint. | User | ✅ Rev 1 |
+| POST | `/v1/completions` | Legacy text completion. Proxied to vLLM. | User | |
+| POST | `/v1/embeddings` | Generate text embeddings (if embedding model loaded). | User | |
+| GET | `/v1/models` | List available models. Returns model ID, size, quantization, status (loaded/available). | User | ✅ Rev 1 |
+| GET | `/v1/models/{model_id}` | Model details: parameters, context window, VRAM usage, capabilities. | User | |
 
 ### Notes
 
@@ -63,15 +63,15 @@ Control which models are loaded, swap between them, and manage the model library
 
 Local conversation storage for the chat UI. All data stays on-device.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/conversations` | List user's conversations. Paginated, sorted by last activity. | User |
-| POST | `/vault/conversations` | Create a new conversation. Optional: title, system prompt, model override. | User |
-| GET | `/vault/conversations/{id}` | Get full conversation with all messages. | User |
-| PUT | `/vault/conversations/{id}` | Update conversation metadata (title, system prompt, pinned status). | User |
-| DELETE | `/vault/conversations/{id}` | Delete a conversation and all its messages. | User |
-| POST | `/vault/conversations/{id}/messages` | Add a message to conversation. Triggers inference if role is `user`. | User |
-| GET | `/vault/conversations/{id}/export` | Export conversation as JSON or Markdown. | User |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/conversations` | List user's conversations. Paginated, sorted by last activity. | User | ✅ Rev 2 |
+| POST | `/vault/conversations` | Create a new conversation. Optional: title, system prompt, model override. | User | ✅ Rev 2 |
+| GET | `/vault/conversations/{id}` | Get full conversation with all messages. | User | ✅ Rev 2 |
+| PUT | `/vault/conversations/{id}` | Update conversation metadata (title, system prompt, pinned status). | User | ✅ Rev 2 |
+| DELETE | `/vault/conversations/{id}` | Delete a conversation and all its messages. | User | ✅ Rev 2 |
+| POST | `/vault/conversations/{id}/messages` | Add a message to conversation. Triggers inference if role is `user`. | User | ✅ Rev 2 |
+| GET | `/vault/conversations/{id}/export` | Export conversation as JSON or Markdown. | User | |
 
 ### Notes
 
@@ -110,16 +110,24 @@ File upload and retrieval-augmented generation. Users upload documents, the syst
 
 Endpoints the dashboard and admin tools use to display system status.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/system/health` | Overall system health. Returns status of each service (vLLM, API, DB, monitoring). | User |
-| GET | `/vault/system/gpu` | GPU status: per-GPU utilization, VRAM used/total, temperature, power draw, fan speed. | User |
-| GET | `/vault/system/resources` | CPU usage, RAM usage, disk space (OS drive + model drive), uptime. | User |
-| GET | `/vault/system/inference` | Inference stats: requests/min, avg latency, tokens/sec, active requests, queue depth. | User |
-| GET | `/vault/system/services` | Status of all managed services: vLLM, Prometheus, Grafana, Cockpit, API gateway. | Admin |
-| POST | `/vault/system/services/{name}/restart` | Restart a specific service. | Admin |
-| GET | `/vault/system/logs` | Paginated system logs. Filterable by service, severity, time range. | Admin |
-| GET | `/vault/system/logs/stream` | WebSocket endpoint for real-time log streaming. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/system/health` | Overall system health. Returns status of each service (vLLM, API, DB, monitoring). | User | (see /vault/health) |
+| GET | `/vault/system/gpu` | GPU status: per-GPU utilization, VRAM used/total, temperature, power draw, fan speed. | User | ✅ Rev 2 |
+| GET | `/vault/system/resources` | CPU usage, RAM usage, disk space (OS drive + model drive), uptime. | User | ✅ Rev 2 |
+| GET | `/vault/system/inference` | Inference stats: requests/min, avg latency, tokens/sec, active requests, queue depth. | User | |
+| GET | `/vault/system/services` | Status of all managed services: vLLM, Prometheus, Grafana, Cockpit, API gateway. | Admin | |
+| POST | `/vault/system/services/{name}/restart` | Restart a specific service. | Admin | |
+| GET | `/vault/system/logs` | Paginated system logs. Filterable by service, severity, time range. | Admin | |
+| GET | `/vault/system/logs/stream` | WebSocket endpoint for real-time log streaming. | Admin | |
+
+**Added in Rev 2 (not in original spec):**
+
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/health` | Basic system health (vLLM status, GPU count, uptime). | None | ✅ Rev 1 |
+| GET | `/vault/insights` | Usage analytics with time-range filtering (24h/7d/30d/90d). | User | ✅ Rev 2 |
+| GET | `/vault/activity` | Recent activity feed from audit log. | User | ✅ Rev 2 |
 
 ### Notes
 
@@ -135,40 +143,51 @@ User management, API keys, configuration, and audit trail.
 
 ### 6.1 API Key Management
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/admin/keys` | List all API keys (shows prefix, label, scope, created date — never full key). | Admin |
-| POST | `/vault/admin/keys` | Generate new API key. Set label, scope (user/admin), rate limit, expiry. Full key shown once. | Admin |
-| PUT | `/vault/admin/keys/{key_id}` | Update key metadata: label, rate limit, active/disabled. | Admin |
-| DELETE | `/vault/admin/keys/{key_id}` | Revoke an API key. Immediately effective. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/admin/keys` | List all API keys (shows prefix, label, scope, created date — never full key). | Admin | ✅ Rev 2 |
+| POST | `/vault/admin/keys` | Generate new API key. Set label, scope (user/admin), rate limit, expiry. Full key shown once. | Admin | ✅ Rev 2 |
+| PUT | `/vault/admin/keys/{key_id}` | Update key metadata: label, rate limit, active/disabled. | Admin | |
+| DELETE | `/vault/admin/keys/{key_id}` | Revoke an API key. Immediately effective. | Admin | ✅ Rev 2 |
 
 ### 6.2 User Management (Post-MVP: LDAP/SSO Integration)
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/admin/users` | List users. MVP: derived from API keys. Post-MVP: synced from LDAP. | Admin |
-| POST | `/vault/admin/users` | Create a user account (post-MVP with LDAP). | Admin |
-| PUT | `/vault/admin/users/{id}` | Update user: role, permissions, rate limit. | Admin |
-| DELETE | `/vault/admin/users/{id}` | Deactivate user. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/admin/users` | List users. MVP: derived from API keys. Post-MVP: synced from LDAP. | Admin | ✅ Rev 2 |
+| POST | `/vault/admin/users` | Create a user account (post-MVP with LDAP). | Admin | ✅ Rev 2 |
+| PUT | `/vault/admin/users/{id}` | Update user: role, permissions, rate limit. | Admin | ✅ Rev 2 |
+| DELETE | `/vault/admin/users/{id}` | Deactivate user. | Admin | ✅ Rev 2 |
+
+> **Note:** User CRUD was pulled forward to Rev 2 to support the frontend settings UI. LDAP/SSO integration remains post-MVP.
 
 ### 6.3 Audit Log
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/admin/audit` | Query audit log. Filter by user, action type, time range, endpoint. Paginated. | Admin |
-| GET | `/vault/admin/audit/export` | Export audit log as CSV or JSON for compliance reporting. | Admin |
-| GET | `/vault/admin/audit/stats` | Aggregate stats: requests per user, tokens consumed, most-used models. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/admin/audit` | Query audit log. Filter by user, action type, time range, endpoint. Paginated. | Admin | |
+| GET | `/vault/admin/audit/export` | Export audit log as CSV or JSON for compliance reporting. | Admin | |
+| GET | `/vault/admin/audit/stats` | Aggregate stats: requests per user, tokens consumed, most-used models. | Admin | |
+
+> **Note:** AuditLog table and middleware writes are ✅ Rev 2 (every request logged). Query/export/stats endpoints not yet built.
 
 ### 6.4 System Configuration
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/admin/config` | Current system configuration (network, TLS, default model, rate limits, etc.). | Admin |
-| PUT | `/vault/admin/config` | Update configuration. Validates before applying. Some changes require service restart. | Admin |
-| GET | `/vault/admin/config/network` | Network settings: hostname, IP, DNS, proxy (if applicable). | Admin |
-| PUT | `/vault/admin/config/network` | Update network config. | Admin |
-| GET | `/vault/admin/config/tls` | TLS certificate info: issuer, expiry, type (self-signed/custom). | Admin |
-| POST | `/vault/admin/config/tls` | Upload custom TLS certificate and private key. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/admin/config` | Current system configuration (network, TLS, default model, rate limits, etc.). | Admin | |
+| PUT | `/vault/admin/config` | Update configuration. Validates before applying. Some changes require service restart. | Admin | |
+| GET | `/vault/admin/config/network` | Network settings: hostname, IP, DNS, proxy (if applicable). | Admin | ✅ Rev 2 |
+| PUT | `/vault/admin/config/network` | Update network config. | Admin | ✅ Rev 2 |
+| GET | `/vault/admin/config/tls` | TLS certificate info: issuer, expiry, type (self-signed/custom). | Admin | |
+| POST | `/vault/admin/config/tls` | Upload custom TLS certificate and private key. | Admin | |
+
+**Added in Rev 2 (not in original spec):**
+
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/admin/config/system` | System settings (timezone, language, auto-update, session timeout). | Admin | ✅ Rev 2 |
+| PUT | `/vault/admin/config/system` | Update system settings. | Admin | ✅ Rev 2 |
 
 ### Notes
 
@@ -282,20 +301,24 @@ Files pass through four stages sequentially. Any stage can flag a file for quara
 
 Job-based API for fine-tuning models using LoRA/QLoRA. Long-running GPU-intensive operations managed through the gateway for resource scheduling, audit logging, and progress tracking. Can be triggered via API or through guided conversational flow in the chat UI.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/vault/training/jobs` | Submit fine-tuning job: base model, dataset (quarantine-cleared file ID), hyperparameters. Returns job ID. | Admin |
-| GET | `/vault/training/jobs` | List all training jobs. Filterable by status, model, date. | User |
-| GET | `/vault/training/jobs/{id}` | Job detail: progress %, current epoch, loss curve, estimated time remaining, logs. | User |
-| POST | `/vault/training/jobs/{id}/cancel` | Cancel a running training job. | Admin |
-| GET | `/vault/training/adapters` | List trained LoRA adapters with metadata: base model, training summary, creation date, metrics. | User |
-| POST | `/vault/training/adapters/{id}/activate` | Load a LoRA adapter onto its base model for inference. | Admin |
-| POST | `/vault/training/adapters/{id}/deactivate` | Remove adapter, revert to base model. | Admin |
-| DELETE | `/vault/training/adapters/{id}` | Delete adapter from disk. Refuses if currently active. | Admin |
-| POST | `/vault/training/validate` | Dry-run validation: format check, size estimate, VRAM projection, estimated time. No training started. | User |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| POST | `/vault/training/jobs` | Submit fine-tuning job: base model, dataset (quarantine-cleared file ID), hyperparameters. Returns job ID. | Admin | ✅ Rev 2 (DB records) |
+| GET | `/vault/training/jobs` | List all training jobs. Filterable by status, model, date. | User | ✅ Rev 2 |
+| GET | `/vault/training/jobs/{id}` | Job detail: progress %, current epoch, loss curve, estimated time remaining, logs. | User | ✅ Rev 2 |
+| POST | `/vault/training/jobs/{id}/cancel` | Cancel a running training job. | Admin | ✅ Rev 2 (state machine) |
+| DELETE | `/vault/training/jobs/{id}` | Delete job record. | Admin | ✅ Rev 2 |
+| POST | `/vault/training/jobs/{id}/pause` | Pause a running training job. | Admin | ✅ Rev 2 (state machine) |
+| POST | `/vault/training/jobs/{id}/resume` | Resume a paused training job. | Admin | ✅ Rev 2 (state machine) |
+| GET | `/vault/training/adapters` | List trained LoRA adapters with metadata: base model, training summary, creation date, metrics. | User | |
+| POST | `/vault/training/adapters/{id}/activate` | Load a LoRA adapter onto its base model for inference. | Admin | |
+| POST | `/vault/training/adapters/{id}/deactivate` | Remove adapter, revert to base model. | Admin | |
+| DELETE | `/vault/training/adapters/{id}` | Delete adapter from disk. Refuses if currently active. | Admin | |
+| POST | `/vault/training/validate` | Dry-run validation: format check, size estimate, VRAM projection, estimated time. No training started. | User | |
 
 ### Notes
 
+- Rev 2 implements training job CRUD and state machine (queued → running → paused → cancelled/completed/failed) as DB records. Real Axolotl/LoRA training runner wired in at Stage 5.
 - Wraps Hugging Face `trl` / `peft` libraries — no custom training framework.
 - Training datasets must have passed quarantine before being accepted.
 - Chat UI can trigger these endpoints via guided conversation: user says "train a custom model," assistant walks them through it.
@@ -345,26 +368,27 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 
 ## Endpoint Count Summary
 
-| Domain | Endpoints | Phase | Priority |
-|--------|-----------|-------|----------|
-| Inference (Industry-Standard API) | 5 | MVP | Sprint 1 |
-| Model Management | 7 | MVP | Sprint 2 |
-| Conversations & History | 7 | MVP | Sprint 2 |
-| System Health & Monitoring | 8 | MVP | Sprint 1 |
-| Administration (Keys, Audit, Config) | 14 | MVP | Sprint 2 |
-| Updates & Maintenance | 7 | MVP | Sprint 2 |
-| First-Boot / Onboarding | 7 | MVP | Sprint 1 |
-| WebSockets | 4 | MVP / Phase 2 | Sprint 3 |
-| Quarantine & Data Security | 9 | MVP* | Sprint 2 |
-| Documents & RAG | 8 | Phase 2 | Sprint 4 |
-| Training & Fine-Tuning | 9 | Phase 2 | Sprint 5 |
-| Evaluation & Benchmarking | 5 | Phase 2 | Sprint 5 |
-| Developer Mode | 5 | Phase 3 | Sprint 6+ |
-| **Total** | **95** | | |
+| Domain | Endpoints | Built | Phase | Status |
+|--------|-----------|-------|-------|--------|
+| Inference (Industry-Standard API) | 5 | 2 | MVP | ✅ Rev 1 (chat + models) |
+| System Health & Monitoring | 8 | 5 | MVP | ✅ Rev 1+2 (health, gpu, resources, insights, activity) |
+| Conversations & History | 7 | 6 | MVP | ✅ Rev 2 (export remaining) |
+| Administration (Keys, Audit, Config) | 14 | 7 | MVP | ✅ Rev 2 partial (keys 3/4, config 4/6, audit 0/3) |
+| User Management | 4 | 4 | Phase 2 | ✅ Rev 2 (pulled forward) |
+| Training & Fine-Tuning | 12 | 7 | Phase 2 | ✅ Rev 2 partial (jobs done, adapters later) |
+| Model Management | 7 | 0 | MVP | |
+| Updates & Maintenance | 7 | 0 | MVP | |
+| First-Boot / Onboarding | 7 | 0 | MVP | |
+| WebSockets | 4 | 0 | MVP / Phase 2 | |
+| Quarantine & Data Security | 9 | 0 | MVP* | |
+| Documents & RAG | 8 | 0 | Phase 2 | |
+| Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
+| Developer Mode | 5 | 0 | Phase 3 | |
+| **Total** | **102** | **31** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*
 
-**MVP: ~57 endpoints | Phase 2: +27 | Phase 3: +5**
+**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → MVP: ~57 → Phase 2: +27 → Phase 3: +5**
 
 ---
 
@@ -402,36 +426,44 @@ Standard HTTP status codes: 400 (bad request), 401 (missing/invalid key), 403 (i
 
 ## Implementation Priority
 
-### Sprint 1 (MVP Core)
+### Rev 1 ✅ Complete (50 tests)
 - Inference pass-through (`/v1/chat/completions`, `/v1/models`)
 - API key auth middleware
-- System health endpoints
-- First-boot setup flow
+- Basic health endpoint (`/vault/health`)
+- Mock vLLM for local dev
+- Docker Compose stack
+- `vault-admin` CLI
 
-### Sprint 2 (MVP Complete)
-- Conversations CRUD
+### Rev 2 ✅ Complete (97 tests)
+- Conversations CRUD (6 endpoints)
+- Training job records + state machine (7 endpoints)
+- User management CRUD (4 endpoints, pulled forward)
+- API key management via API (3 endpoints)
+- System metrics — CPU, RAM, disk, GPU (2 endpoints)
+- Usage analytics + activity feed (2 endpoints)
+- Network + system config (4 endpoints)
+- AuditLog middleware (writes every request to DB)
+
+### Next: MVP Complete (Stage 3)
 - Model management (load/unload/active)
-- Audit logging
-- Admin key management
+- First-boot setup flow
+- Audit log query/export endpoints
 - Quarantine pipeline Stages 1-3 (file integrity, malware, sanitization)
-
-### Sprint 3 (MVP Polish)
-- WebSocket endpoints (system metrics, log streaming)
 - Update mechanism (USB scan, apply, progress)
-- Advanced config endpoints (network, TLS)
+- WebSocket endpoints (system metrics, log streaming)
 
-### Sprint 4 (Phase 2 — Data Platform)
+### Phase 2 — Data Platform (Stage 4)
 - Documents & RAG pipeline
 - Quarantine Stage 4 (AI-specific checks, PII scanning)
 - LDAP/SSO integration
 
-### Sprint 5 (Phase 2 — Training Platform)
-- Training & fine-tuning job API
+### Phase 2 — Training Platform (Stage 5)
+- Real Axolotl/LoRA training runner (wired to existing job API)
 - LoRA adapter management
 - Evaluation & benchmarking
 - Chat UI guided training flow
 
-### Sprint 6+ (Phase 3 — Research Platform)
+### Phase 3 — Research Platform (Stage 6)
 - Developer mode (GPU allocation, JupyterHub)
 - SSH access management
 - Custom container launching
