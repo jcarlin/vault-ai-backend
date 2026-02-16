@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     # vLLM backend
     vllm_base_url: str = "http://localhost:8001"
+    vllm_api_key: str | None = None
 
     # Security
     vault_secret_key: str = "dev-secret-key-change-in-production"
@@ -21,6 +22,10 @@ class Settings(BaseSettings):
 
     # CORS
     vault_cors_origins: str = "https://vault-cube.local"
+
+    # Setup wizard
+    vault_setup_flag_path: str = "/opt/vault/data/.setup_complete"
+    vault_tls_cert_dir: str = "/opt/vault/tls"
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 

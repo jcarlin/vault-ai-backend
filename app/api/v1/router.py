@@ -9,6 +9,7 @@ from app.api.v1.activity import router as activity_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.conversations import router as conversations_router
 from app.api.v1.insights import router as insights_router
+from app.api.v1.setup import router as setup_router
 from app.api.v1.system import router as system_router
 from app.api.v1.training import router as training_router
 
@@ -26,3 +27,6 @@ v1_router.include_router(admin_router, tags=["Admin"])
 v1_router.include_router(system_router, tags=["System"])
 v1_router.include_router(insights_router, tags=["Insights"])
 v1_router.include_router(activity_router, tags=["Activity"])
+
+# Setup wizard
+v1_router.include_router(setup_router, tags=["Setup"])

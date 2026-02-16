@@ -20,6 +20,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """Validates Bearer token on every request except public paths."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # Setup wizard endpoints: unauthenticated when pending, 404 when complete
+        if request.url.path.startswith("/vault/setup/"):
+            if getattr(request.app.state, "setup_complete", False):
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": {"code": "not_found", "message": "Setup has already been completed.", "status": 404}},
+                )
+            return await call_next(request)
+
         if request.url.path in PUBLIC_PATHS:
             return await call_next(request)
 

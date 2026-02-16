@@ -117,3 +117,21 @@ async def anon_client(app_with_db):
     transport = ASGITransport(app=app_with_db)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def setup_client(app_with_db):
+    """Unauthenticated client with setup_complete=False (setup wizard mode)."""
+    app_with_db.state.setup_complete = False
+    transport = ASGITransport(app=app_with_db)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def setup_done_client(app_with_db):
+    """Unauthenticated client with setup_complete=True (setup already finished)."""
+    app_with_db.state.setup_complete = True
+    transport = ASGITransport(app=app_with_db)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client

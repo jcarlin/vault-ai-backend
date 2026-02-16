@@ -1,25 +1,38 @@
 # CLAUDE.md — Vault AI Backend
 
+## Related Documentation
+
+| File | Purpose | Read When |
+|------|---------|-----------|
+| `../CLAUDE.md` | Root project guide: architecture, all repos, tech stack, sprint status, key decisions | Understanding the full system, what ships when |
+| `../ROADMAP.md` | Master product roadmap: 6 stages, 20 epics, all endpoints, effort estimates | Understanding what ships in which release |
+| `vault-api-spec.md` | API endpoint specification: all endpoints (Rev 1–5), request/response formats, auth | Reviewing the API contract, seeing what's built vs planned |
+| `PRD.md` | Full backend design: DB schema, training architecture, system design | Planning features beyond Rev 2 |
+| `../vault-ai-frontend/CLAUDE.md` | Frontend components, API integration, pages, design tokens | Understanding how the frontend consumes this API |
+
 ## Current Scope: Rev 2 (Stage 2) — COMPLETE
 
-**Rev 2 is complete: 31 API endpoints + auth middleware + audit logging + CLI + Docker + 97 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**38 API endpoints + auth middleware + audit logging + CLI + Docker + 117 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
 - **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
 - **Rev 2 (28 new endpoints):** Conversations CRUD, training jobs lifecycle, admin/users/keys/config, system metrics, insights analytics, activity feed
+- **First-boot wizard (7 endpoints):** Setup status, network config, admin account + API key creation, TLS cert, model selection, system verification, setup completion with lockout
 - API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
 - Request logging middleware (structured JSON via structlog + AuditLog table)
+- Setup wizard middleware (unauthenticated access when pending, 404 when complete)
 - `vault-admin` CLI (create-key, list-keys, revoke-key)
 - Mock vLLM server for local dev without GPU
 - Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
-- Pre-commit hooks (gitleaks + secret detection)
-- 97 tests (unit + integration), all passing
+- 117 tests (unit + integration), all passing
+- Frontend (vault-ai-frontend) wired to all 31 Rev 1+2 endpoints — chat streaming, conversations, admin, settings, insights all using real API calls
 
 ### What's next
-- Connect frontend (vault-ai-frontend) to this backend
 - Deploy on the Cube once GPU track completes (swap mock for real vLLM)
 - End-to-end testing with real hardware
-- Then: first-boot wizard, monitoring setup, pilot deployment
+- Enforce API key scopes (admin vs user — currently stored but not checked by endpoints)
+- Wire frontend to first-boot wizard endpoints (currently uses localStorage)
+- Then: monitoring setup (Grafana/Cockpit), pilot deployment
 
 ### Rev 1 Endpoints
 
@@ -68,6 +81,22 @@ GET    /vault/system/gpu                 → Per-GPU metrics (py3nvml)
 GET    /vault/insights?range=7d          → Usage analytics from audit log
 GET    /vault/activity?limit=20          → Recent activity feed
 ```
+
+### First-Boot Wizard Endpoints
+
+```
+GET  /vault/setup/status    → Setup state (pending/in_progress/complete)
+POST /vault/setup/network   → Configure hostname, IP, DNS (hostnamectl/nmcli, no-ops on dev)
+POST /vault/setup/admin     → Create admin user + API key (201, raw key shown once)
+POST /vault/setup/tls       → Self-signed or custom TLS certificate (openssl, no-ops on dev)
+POST /vault/setup/model     → Select default model from manifest
+GET  /vault/setup/verify    → Run verification checks (DB, inference, GPU, TLS)
+POST /vault/setup/complete  → Lock setup, write flag file, 404 all setup endpoints
+```
+
+**Middleware gating:** Setup endpoints are unauthenticated while setup is pending. After `POST /vault/setup/complete`, all `/vault/setup/*` endpoints return 404 — they cease to exist.
+
+**State tracking:** Dual-layer — DB (`SystemConfig` table with `setup.*` keys) + flag file (`/opt/vault/data/.setup_complete`). In-memory cache via `app.state.setup_complete`.
 
 ### Rev 1 Non-API Tools
 
@@ -159,7 +188,8 @@ vault-ai-backend/
 │   │       ├── admin.py        # Users, API keys, config management
 │   │       ├── system.py       # System resources + GPU metrics
 │   │       ├── insights.py     # Usage analytics from audit log
-│   │       └── activity.py     # Recent activity feed
+│   │       ├── activity.py     # Recent activity feed
+│   │       └── setup.py        # First-boot wizard (7 endpoints)
 │   │
 │   ├── services/
 │   │   ├── __init__.py
@@ -172,7 +202,8 @@ vault-ai-backend/
 │   │   ├── conversations.py    # Conversation + message business logic
 │   │   ├── training.py         # Training job management + state machine
 │   │   ├── admin.py            # User/config management, wraps AuthService
-│   │   └── system.py           # CPU/RAM/disk metrics via psutil
+│   │   ├── system.py           # CPU/RAM/disk metrics via psutil
+│   │   └── setup.py            # First-boot wizard logic, reuses AdminService
 │   │
 │   ├── schemas/                # Pydantic v2 request/response models
 │   │   ├── __init__.py
@@ -184,7 +215,8 @@ vault-ai-backend/
 │   │   ├── admin.py            # UserCreate/Response, KeyCreate/Response, Config schemas
 │   │   ├── system.py           # SystemResources, GpuDetail
 │   │   ├── insights.py         # InsightsResponse, UsageDataPoint, ModelUsageStats
-│   │   └── activity.py         # ActivityItem, ActivityFeed
+│   │   ├── activity.py         # ActivityItem, ActivityFeed
+│   │   └── setup.py            # Setup wizard request/response models
 │   │
 │   ├── core/
 │   │   ├── __init__.py
@@ -202,6 +234,8 @@ vault-ai-backend/
 │   ├── unit/
 │   │   ├── test_auth.py
 │   │   ├── test_schemas.py
+│   │   ├── test_security.py
+│   │   ├── test_exceptions.py
 │   │   └── test_inference_client.py
 │   └── integration/
 │       ├── test_chat_endpoint.py
@@ -211,7 +245,8 @@ vault-ai-backend/
 │       ├── test_training_endpoint.py
 │       ├── test_admin_endpoint.py
 │       ├── test_system_endpoint.py
-│       └── test_insights_endpoint.py
+│       ├── test_insights_endpoint.py
+│       └── test_setup_endpoint.py
 │
 ├── config/
 │   ├── models.json             # Model manifest (installed models + metadata)
@@ -225,6 +260,7 @@ vault-ai-backend/
 │   └── health_check.sh         # Smoke test script
 │
 ├── pyproject.toml              # uv/pip dependencies
+├── vault-api-spec.md           # API endpoint specification (all revisions)
 └── PRD.md                      # Full backend design reference (future scope)
 ```
 
@@ -275,7 +311,7 @@ def get_models():  # ❌ WRONG
 # Auth header format:
 # Authorization: Bearer vault_sk_a1b2c3d4e5f6...
 
-# Middleware validates on every request except /vault/health
+# Middleware validates on every request except /vault/health and /vault/setup/* (when setup pending)
 ```
 
 ### Error Response Format
@@ -393,6 +429,8 @@ VAULT_DB_URL=sqlite+aiosqlite:///data/vault.db   # Database URL
 VAULT_LOG_LEVEL=info                              # Logging level
 VAULT_MODELS_MANIFEST=/opt/vault/config/models.json  # Model manifest path
 VAULT_CORS_ORIGINS=https://vault-cube.local       # Allowed CORS origins
+VAULT_SETUP_FLAG_PATH=/opt/vault/data/.setup_complete  # Setup wizard completion flag
+VAULT_TLS_CERT_DIR=/opt/vault/tls                      # TLS certificate directory
 ```
 
 ---
@@ -440,7 +478,7 @@ Models are managed via a JSON file, not an API. Admin edits the file and restart
 
 ## What Comes After Rev 1
 
-See `PRD.md` for the full backend design and `ROADMAP.md` (root) for staging. The next backend milestones are:
+See `vault-api-spec.md` for the full API endpoint specification, `PRD.md` for backend design, and `../ROADMAP.md` for staging. The next backend milestones are:
 
 - **Stage 3:** Expand to 57 endpoints — model management API, conversations API, admin/audit API, quarantine pipeline, update mechanism
 - **Stage 4:** Documents & RAG, PII scanning, LDAP integration

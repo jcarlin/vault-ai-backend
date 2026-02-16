@@ -1,8 +1,8 @@
 # Vault Cube — API Endpoint Specification
 
-**Version:** 0.3 (Updated with Rev 2 completion markers)
+**Version:** 0.4 (First-boot wizard endpoints shipped)
 **Date:** February 2026
-**Status:** Rev 2 shipped — 31 endpoints, 97 tests. See `CLAUDE.md` for current scope.
+**Status:** 38 endpoints shipped (31 Rev 1+2 + 7 first-boot wizard), 117 tests. See `CLAUDE.md` for current scope.
 
 ---
 
@@ -224,15 +224,15 @@ Air-gapped update lifecycle.
 
 Used only during initial setup. These endpoints are unauthenticated (protected by first-boot state flag).
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/setup/status` | Returns setup state: `pending`, `in_progress`, `complete`. If complete, all other setup endpoints return 404. | None |
-| POST | `/vault/setup/network` | Configure hostname, static IP or DHCP. | None* |
-| POST | `/vault/setup/admin` | Create admin account and generate first admin API key. | None* |
-| POST | `/vault/setup/tls` | Choose TLS mode: generate self-signed or upload custom cert. | None* |
-| POST | `/vault/setup/model` | Select default model from pre-loaded options. Triggers model loading. | None* |
-| GET | `/vault/setup/verify` | Run system verification: GPU check, inference test, service health. Returns results. | None* |
-| POST | `/vault/setup/complete` | Finalize setup. Locks setup endpoints permanently. Starts all services in production mode. | None* |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/setup/status` | Returns setup state: `pending`, `in_progress`, `complete`. If complete, all other setup endpoints return 404. | None | ✅ |
+| POST | `/vault/setup/network` | Configure hostname, static IP or DHCP. | None* | ✅ |
+| POST | `/vault/setup/admin` | Create admin account and generate first admin API key. | None* | ✅ |
+| POST | `/vault/setup/tls` | Choose TLS mode: generate self-signed or upload custom cert. | None* | ✅ |
+| POST | `/vault/setup/model` | Select default model from pre-loaded options. Triggers model loading. | None* | ✅ |
+| GET | `/vault/setup/verify` | Run system verification: GPU check, inference test, service health. Returns results. | None* | ✅ |
+| POST | `/vault/setup/complete` | Finalize setup. Locks setup endpoints permanently. Starts all services in production mode. | None* | ✅ |
 
 *\*None = unauthenticated, but only accessible before setup is marked complete. After setup, these return 404.*
 
@@ -378,17 +378,17 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 | Training & Fine-Tuning | 12 | 7 | Phase 2 | ✅ Rev 2 partial (jobs done, adapters later) |
 | Model Management | 7 | 0 | MVP | |
 | Updates & Maintenance | 7 | 0 | MVP | |
-| First-Boot / Onboarding | 7 | 0 | MVP | |
+| First-Boot / Onboarding | 7 | 7 | MVP | ✅ |
 | WebSockets | 4 | 0 | MVP / Phase 2 | |
 | Quarantine & Data Security | 9 | 0 | MVP* | |
 | Documents & RAG | 8 | 0 | Phase 2 | |
 | Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
 | Developer Mode | 5 | 0 | Phase 3 | |
-| **Total** | **102** | **31** | | |
+| **Total** | **102** | **38** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*
 
-**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → MVP: ~57 → Phase 2: +27 → Phase 3: +5**
+**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → MVP: ~57 → Phase 2: +27 → Phase 3: +5**
 
 ---
 
@@ -444,9 +444,14 @@ Standard HTTP status codes: 400 (bad request), 401 (missing/invalid key), 403 (i
 - Network + system config (4 endpoints)
 - AuditLog middleware (writes every request to DB)
 
+### First-Boot Wizard ✅ Complete (117 tests total)
+- Setup status, network, admin, TLS, model, verify, complete (7 endpoints)
+- Middleware gating: unauthenticated when pending, 404 when complete
+- System commands (hostnamectl, nmcli, openssl) gracefully no-op on dev
+- Dual-layer state: DB (SystemConfig) + flag file + in-memory cache
+
 ### Next: MVP Complete (Stage 3)
 - Model management (load/unload/active)
-- First-boot setup flow
 - Audit log query/export endpoints
 - Quarantine pipeline Stages 1-3 (file integrity, malware, sanitization)
 - Update mechanism (USB scan, apply, progress)

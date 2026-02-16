@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 import structlog
@@ -44,10 +45,21 @@ async def lifespan(app: FastAPI):
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
     )
-    backend = VLLMBackend(base_url=settings.vllm_base_url, http_client=http_client)
+    backend = VLLMBackend(
+        base_url=settings.vllm_base_url,
+        http_client=http_client,
+        api_key=settings.vllm_api_key,
+    )
     app.state.inference_backend = backend
 
-    logger.info("vault_backend_starting", vllm_url=settings.vllm_base_url)
+    # Check if first-boot setup has been completed (flag file = fast check, no DB)
+    setup_flag = Path(settings.vault_setup_flag_path)
+    app.state.setup_complete = setup_flag.exists()
+    logger.info(
+        "vault_backend_starting",
+        vllm_url=settings.vllm_base_url,
+        setup_complete=app.state.setup_complete,
+    )
     yield
 
     await backend.close()
