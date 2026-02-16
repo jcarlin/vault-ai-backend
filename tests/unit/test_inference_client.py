@@ -65,10 +65,16 @@ async def test_non_streaming_chat(vllm_backend: VLLMBackend):
 
 
 async def test_list_models(vllm_backend: VLLMBackend):
-    """List models returns available models from vLLM."""
+    """List models returns available models with rich metadata from Ollama-style backend."""
     models = await vllm_backend.list_models()
     assert len(models) == 1
-    assert models[0].id == "qwen2.5-32b-awq"
+    # Ollama /api/tags returns model IDs with :latest suffix
+    assert models[0].id == "qwen2.5-32b-awq:latest"
+    assert models[0].name == "qwen2.5-32b-awq"
+    assert models[0].parameters == "32.5B"
+    assert models[0].quantization == "Q4_0"
+    assert models[0].family == "qwen2"
+    assert models[0].context_window == 32768
 
 
 async def test_health_check_ok(vllm_backend: VLLMBackend):

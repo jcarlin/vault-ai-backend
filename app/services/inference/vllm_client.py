@@ -1,11 +1,15 @@
+import asyncio
 from collections.abc import AsyncIterator
 
 import httpx
+import structlog
 
 from app.core.exceptions import BackendUnavailableError
 from app.schemas.chat import ChatCompletionRequest
 from app.schemas.models import ModelInfo
 from app.services.inference.base import InferenceBackend
+
+logger = structlog.get_logger()
 
 
 class VLLMBackend(InferenceBackend):
@@ -40,14 +44,47 @@ class VLLMBackend(InferenceBackend):
             raise BackendUnavailableError("vLLM request timed out.")
 
     async def list_models(self) -> list[ModelInfo]:
-        """List available models from vLLM."""
+        """List available models with auto-discovered metadata.
+
+        Tries Ollama's /api/tags for rich metadata (params, quant, family, size),
+        then enriches with /api/show for context_window. Falls back to the
+        OpenAI-compatible /v1/models if backend isn't Ollama.
+        """
+        # Try Ollama's /api/tags (rich metadata in one call)
+        try:
+            response = await self._client.get(f"{self.base_url}/api/tags", headers=self._headers)
+            if response.status_code == 200:
+                models = self._parse_ollama_tags(response.json())
+                # Enrich with context_window from /api/show (parallel)
+                await self._enrich_context_windows(models)
+                return models
+        except (httpx.ConnectError, httpx.TimeoutException):
+            pass
+
+        # Fall back to OpenAI-compatible /v1/models
         try:
             response = await self._client.get(f"{self.base_url}/v1/models", headers=self._headers)
             response.raise_for_status()
             data = response.json()
             return [ModelInfo(id=m["id"], name=m.get("id", "")) for m in data.get("data", [])]
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            raise BackendUnavailableError(f"Cannot reach vLLM: {e}")
+            raise BackendUnavailableError(f"Cannot reach inference backend: {e}")
+
+    async def get_model_details(self, model_id: str) -> ModelInfo:
+        """Get detailed info for a specific model via Ollama /api/show."""
+        try:
+            response = await self._client.post(
+                f"{self.base_url}/api/show",
+                json={"name": model_id},
+                headers=self._headers,
+            )
+            if response.status_code == 200:
+                return self._parse_ollama_show(model_id, response.json())
+        except (httpx.ConnectError, httpx.TimeoutException):
+            pass
+
+        # Fallback: just the model ID
+        return ModelInfo(id=model_id, name=model_id)
 
     async def health_check(self) -> bool:
         """Check if inference backend is responsive."""
@@ -68,3 +105,71 @@ class VLLMBackend(InferenceBackend):
     async def close(self):
         """Close the underlying HTTP client."""
         await self._client.aclose()
+
+    # ── Ollama response parsers ──────────────────────────────────────────────
+
+    def _parse_ollama_tags(self, data: dict) -> list[ModelInfo]:
+        """Parse Ollama /api/tags response into ModelInfo list."""
+        models = []
+        for m in data.get("models", []):
+            details = m.get("details", {})
+            model_id = m.get("model", m.get("name", ""))
+            name = model_id.rsplit(":", 1)[0] if ":" in model_id else model_id
+
+            size_bytes = m.get("size")
+            # Rough VRAM estimate: model file size * 1.2 overhead
+            vram_gb = round(size_bytes / (1024**3) * 1.2, 1) if size_bytes else None
+
+            models.append(ModelInfo(
+                id=model_id,
+                name=name,
+                parameters=details.get("parameter_size"),
+                quantization=details.get("quantization_level"),
+                family=details.get("family"),
+                size_bytes=size_bytes,
+                vram_required_gb=vram_gb,
+            ))
+        return models
+
+    def _parse_ollama_show(self, model_id: str, data: dict) -> ModelInfo:
+        """Parse Ollama /api/show response into ModelInfo."""
+        details = data.get("details", {})
+        model_info = data.get("model_info", {})
+
+        name = model_id.rsplit(":", 1)[0] if ":" in model_id else model_id
+
+        # Context length key varies by architecture (e.g. llama.context_length, qwen2.context_length)
+        context_window = None
+        for key, value in model_info.items():
+            if key.endswith(".context_length"):
+                context_window = value
+                break
+
+        return ModelInfo(
+            id=model_id,
+            name=name,
+            parameters=details.get("parameter_size"),
+            quantization=details.get("quantization_level"),
+            family=details.get("family"),
+            context_window=context_window,
+        )
+
+    async def _enrich_context_windows(self, models: list[ModelInfo]) -> None:
+        """Enrich model list with context_window from /api/show (best-effort, parallel)."""
+        async def _get_context(model: ModelInfo) -> None:
+            try:
+                resp = await self._client.post(
+                    f"{self.base_url}/api/show",
+                    json={"name": model.id},
+                    headers=self._headers,
+                )
+                if resp.status_code == 200:
+                    model_info = resp.json().get("model_info", {})
+                    for key, value in model_info.items():
+                        if key.endswith(".context_length"):
+                            model.context_window = value
+                            break
+            except (httpx.ConnectError, httpx.TimeoutException):
+                pass
+
+        await asyncio.gather(*[_get_context(m) for m in models])

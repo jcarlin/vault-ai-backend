@@ -105,6 +105,51 @@ async def list_models():
     }
 
 
+# ── Ollama-compatible endpoints (for dev parity) ────────────────────────────
+
+
+@app.get("/api/tags")
+async def ollama_tags():
+    """Ollama /api/tags — rich model metadata."""
+    return {
+        "models": [
+            {
+                "name": "qwen2.5-32b-awq:latest",
+                "model": "qwen2.5-32b-awq:latest",
+                "size": 21474836480,
+                "digest": "abc123def456",
+                "details": {
+                    "family": "qwen2",
+                    "parameter_size": "32.5B",
+                    "quantization_level": "Q4_0",
+                    "format": "gguf",
+                },
+            }
+        ]
+    }
+
+
+class _ShowRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/show")
+async def ollama_show(request: _ShowRequest):
+    """Ollama /api/show — detailed model info including context length."""
+    return {
+        "details": {
+            "family": "qwen2",
+            "parameter_size": "32.5B",
+            "quantization_level": "Q4_0",
+            "format": "gguf",
+        },
+        "model_info": {
+            "general.architecture": "qwen2",
+            "qwen2.context_length": 32768,
+        },
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

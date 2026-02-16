@@ -13,7 +13,12 @@ class InferenceBackend(ABC):
 
     @abstractmethod
     async def list_models(self) -> list[ModelInfo]:
-        """List available models."""
+        """List available models with auto-discovered metadata."""
+        ...
+
+    @abstractmethod
+    async def get_model_details(self, model_id: str) -> ModelInfo:
+        """Get detailed info for a specific model."""
         ...
 
     @abstractmethod

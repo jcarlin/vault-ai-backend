@@ -9,6 +9,8 @@ class ModelInfo(BaseModel):
     context_window: int | None = None
     vram_required_gb: float | None = None
     description: str | None = None
+    family: str | None = None
+    size_bytes: int | None = None
 
 
 class ModelListResponse(BaseModel):
