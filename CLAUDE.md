@@ -1,8 +1,24 @@
 # CLAUDE.md — Vault AI Backend
 
-## Current Scope: Rev 1 (Stage 2)
+## Current Scope: Rev 1 (Stage 2) — COMPLETE
 
-**Rev 1 ships 3 API endpoints + auth middleware + request logging.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**Rev 1 is complete: 3 API endpoints + auth middleware + request logging + CLI + Docker + 50 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+
+### What's done
+- All 3 endpoints implemented and tested (chat streaming + non-streaming, models, health)
+- API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
+- Request logging middleware (structured JSON via structlog)
+- `vault-admin` CLI (create-key, list-keys, revoke-key)
+- Mock vLLM server for local dev without GPU
+- Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
+- Pre-commit hooks (gitleaks + secret detection)
+- 50 tests (unit + integration), all passing
+
+### What's next
+- Connect frontend (vault-ai-prototype) to this backend
+- Deploy on the Cube once GPU track completes (swap mock for real vLLM)
+- End-to-end testing with real hardware
+- Then: first-boot wizard, monitoring setup, pilot deployment
 
 ### Rev 1 Endpoints
 
