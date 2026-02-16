@@ -1,11 +1,12 @@
 import time
+from datetime import datetime, timezone
 
 import structlog
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 
-from app.core.database import ApiKey, async_session
+from app.core.database import ApiKey, AuditLog, async_session
 from app.core.exceptions import AuthenticationError
 from app.core.security import hash_api_key
 
@@ -52,8 +53,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.api_key_scope = key_row.scope
 
             # Update last_used_at
-            from datetime import datetime, timezone
-
             await session.execute(
                 update(ApiKey).where(ApiKey.id == key_row.id).values(last_used_at=datetime.now(timezone.utc))
             )
@@ -63,7 +62,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Logs every request as structured JSON."""
+    """Logs every request as structured JSON and writes to AuditLog table."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         start = time.perf_counter()
@@ -80,5 +79,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             latency_ms=latency_ms,
             user_key_prefix=key_prefix,
         )
+
+        # Write to AuditLog (best-effort — don't let logging failures break requests)
+        try:
+            async with async_session() as session:
+                audit_entry = AuditLog(
+                    action="http_request",
+                    method=request.method,
+                    path=request.url.path,
+                    user_key_prefix=key_prefix,
+                    status_code=response.status_code,
+                    latency_ms=latency_ms,
+                    timestamp=datetime.now(timezone.utc),
+                )
+                session.add(audit_entry)
+                await session.commit()
+        except Exception:
+            logger.debug("audit_log_write_failed", path=request.url.path)
 
         return response

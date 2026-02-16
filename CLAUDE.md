@@ -1,21 +1,22 @@
 # CLAUDE.md — Vault AI Backend
 
-## Current Scope: Rev 1 (Stage 2) — COMPLETE
+## Current Scope: Rev 2 (Stage 2) — COMPLETE
 
-**Rev 1 is complete: 3 API endpoints + auth middleware + request logging + CLI + Docker + 50 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**Rev 2 is complete: 31 API endpoints + auth middleware + audit logging + CLI + Docker + 97 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
-- All 3 endpoints implemented and tested (chat streaming + non-streaming, models, health)
+- **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
+- **Rev 2 (28 new endpoints):** Conversations CRUD, training jobs lifecycle, admin/users/keys/config, system metrics, insights analytics, activity feed
 - API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
-- Request logging middleware (structured JSON via structlog)
+- Request logging middleware (structured JSON via structlog + AuditLog table)
 - `vault-admin` CLI (create-key, list-keys, revoke-key)
 - Mock vLLM server for local dev without GPU
 - Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
 - Pre-commit hooks (gitleaks + secret detection)
-- 50 tests (unit + integration), all passing
+- 97 tests (unit + integration), all passing
 
 ### What's next
-- Connect frontend (vault-ai-prototype) to this backend
+- Connect frontend (vault-ai-frontend) to this backend
 - Deploy on the Cube once GPU track completes (swap mock for real vLLM)
 - End-to-end testing with real hardware
 - Then: first-boot wizard, monitoring setup, pilot deployment
@@ -28,6 +29,46 @@ GET  /v1/models              → List available models from local manifest file
 GET  /vault/health           → System health check (vLLM status, GPU detection)
 ```
 
+### Rev 2 Endpoints
+
+```
+Conversations:
+GET    /vault/conversations              → List conversations (paginated, sorted by updatedAt)
+POST   /vault/conversations              → Create conversation
+GET    /vault/conversations/{id}         → Get conversation with messages
+PUT    /vault/conversations/{id}         → Update title
+DELETE /vault/conversations/{id}         → Delete conversation (cascades messages)
+POST   /vault/conversations/{id}/messages → Add message to conversation
+
+Training Jobs:
+GET    /vault/training/jobs              → List training jobs
+POST   /vault/training/jobs              → Create training job
+GET    /vault/training/jobs/{id}         → Get job detail + metrics
+POST   /vault/training/jobs/{id}/pause   → Pause running job
+POST   /vault/training/jobs/{id}/resume  → Resume paused job
+POST   /vault/training/jobs/{id}/cancel  → Cancel job
+DELETE /vault/training/jobs/{id}         → Delete job record
+
+Admin:
+GET    /vault/admin/users                → List users
+POST   /vault/admin/users                → Create user
+PUT    /vault/admin/users/{id}           → Update user
+DELETE /vault/admin/users/{id}           → Deactivate user (soft delete)
+GET    /vault/admin/keys                 → List API keys
+POST   /vault/admin/keys                 → Create API key
+DELETE /vault/admin/keys/{id}            → Revoke API key
+GET    /vault/admin/config/network       → Get network config
+PUT    /vault/admin/config/network       → Update network config
+GET    /vault/admin/config/system        → Get system settings
+PUT    /vault/admin/config/system        → Update system settings
+
+System & Analytics:
+GET    /vault/system/resources           → CPU, RAM, disk, network metrics (psutil)
+GET    /vault/system/gpu                 → Per-GPU metrics (py3nvml)
+GET    /vault/insights?range=7d          → Usage analytics from audit log
+GET    /vault/activity?limit=20          → Recent activity feed
+```
+
 ### Rev 1 Non-API Tools
 
 ```
@@ -36,17 +77,16 @@ vault-admin list-keys                                        # List keys (prefix
 vault-admin revoke-key vault_sk_abc123...                    # Revoke key
 ```
 
-### What Is NOT Rev 1
+### What Is NOT Rev 2
 
 These are all real features in the roadmap but they ship in later stages:
-- Model load/unload via API (Rev 1: config file + service restart)
-- Conversations persistence (Rev 1: localStorage in frontend)
-- Training/fine-tuning (Stage 5)
+- Model load/unload via API (Rev 2: config file + service restart)
+- Real training execution (Rev 2: job records only, Axolotl/LoRA in Stage 5)
 - File upload quarantine pipeline (Stage 3)
-- User management / JWT auth (Stage 3-4)
+- JWT auth / LDAP/SSO (Stage 3-4, Rev 2 uses API keys)
 - GPU allocation API (Stage 5)
-- PostgreSQL (Rev 1 uses SQLite)
-- Redis / Celery (Rev 1 uses async tasks)
+- PostgreSQL (Rev 2 uses SQLite)
+- Redis / Celery (Rev 2 uses async tasks)
 
 ---
 
@@ -113,7 +153,13 @@ vault-ai-backend/
 │   │       ├── router.py       # Main router aggregator
 │   │       ├── chat.py         # POST /v1/chat/completions
 │   │       ├── models.py       # GET /v1/models
-│   │       └── health.py       # GET /vault/health
+│   │       ├── health.py       # GET /vault/health
+│   │       ├── conversations.py # Conversations CRUD + messages
+│   │       ├── training.py     # Training jobs CRUD + lifecycle
+│   │       ├── admin.py        # Users, API keys, config management
+│   │       ├── system.py       # System resources + GPU metrics
+│   │       ├── insights.py     # Usage analytics from audit log
+│   │       └── activity.py     # Recent activity feed
 │   │
 │   ├── services/
 │   │   ├── __init__.py
@@ -122,20 +168,30 @@ vault-ai-backend/
 │   │   │   ├── base.py         # Abstract InferenceBackend interface
 │   │   │   └── vllm_client.py  # httpx async client to vLLM
 │   │   ├── auth.py             # API key validation
-│   │   └── monitoring.py       # GPU metrics (py3nvml)
+│   │   ├── monitoring.py       # GPU metrics (py3nvml)
+│   │   ├── conversations.py    # Conversation + message business logic
+│   │   ├── training.py         # Training job management + state machine
+│   │   ├── admin.py            # User/config management, wraps AuthService
+│   │   └── system.py           # CPU/RAM/disk metrics via psutil
 │   │
 │   ├── schemas/                # Pydantic v2 request/response models
 │   │   ├── __init__.py
 │   │   ├── chat.py             # ChatCompletionRequest, ChatCompletionResponse
 │   │   ├── models.py           # ModelInfo, ModelList
-│   │   └── health.py           # HealthResponse
+│   │   ├── health.py           # HealthResponse
+│   │   ├── conversations.py    # ConversationCreate/Response, MessageCreate/Response
+│   │   ├── training.py         # TrainingJobCreate/Response, TrainingConfig/Metrics
+│   │   ├── admin.py            # UserCreate/Response, KeyCreate/Response, Config schemas
+│   │   ├── system.py           # SystemResources, GpuDetail
+│   │   ├── insights.py         # InsightsResponse, UsageDataPoint, ModelUsageStats
+│   │   └── activity.py         # ActivityItem, ActivityFeed
 │   │
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── security.py         # API key hashing, validation
 │   │   ├── exceptions.py       # Custom exception classes
-│   │   ├── middleware.py        # Auth middleware, request logging, CORS
-│   │   └── database.py         # SQLite + SQLAlchemy async setup
+│   │   ├── middleware.py        # Auth middleware, request logging + AuditLog, CORS
+│   │   └── database.py         # SQLite + SQLAlchemy async: ApiKey, User, Conversation, Message, TrainingJob, AuditLog, SystemConfig
 │   │
 │   └── cli.py                  # vault-admin CLI tool (click or typer)
 │
@@ -150,7 +206,12 @@ vault-ai-backend/
 │   └── integration/
 │       ├── test_chat_endpoint.py
 │       ├── test_models_endpoint.py
-│       └── test_health_endpoint.py
+│       ├── test_health_endpoint.py
+│       ├── test_conversations_endpoint.py
+│       ├── test_training_endpoint.py
+│       ├── test_admin_endpoint.py
+│       ├── test_system_endpoint.py
+│       └── test_insights_endpoint.py
 │
 ├── config/
 │   ├── models.json             # Model manifest (installed models + metadata)

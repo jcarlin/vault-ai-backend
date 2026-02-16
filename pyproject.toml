@@ -15,6 +15,7 @@ dependencies = [
     "py3nvml>=0.2.7",
     "pyyaml>=6.0.2",
     "rich>=13.9.0",
+    "psutil>=6.0.0",
 ]
 
 [project.scripts]
