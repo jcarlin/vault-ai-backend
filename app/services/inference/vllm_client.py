@@ -11,6 +11,21 @@ from app.services.inference.base import InferenceBackend
 
 logger = structlog.get_logger()
 
+# ── Model type classification ────────────────────────────────────────────────
+
+EMBEDDING_FAMILIES = frozenset({"bert", "nomic-bert", "mxbai"})
+EMBEDDING_NAME_KEYWORDS = ("embed", "bge", "e5-", "gte-")
+
+
+def _classify_model_type(family: str | None, model_id: str) -> str:
+    """Classify a model as 'chat' or 'embedding' based on family and name heuristics."""
+    if family and family.lower() in EMBEDDING_FAMILIES:
+        return "embedding"
+    model_lower = model_id.lower()
+    if any(kw in model_lower for kw in EMBEDDING_NAME_KEYWORDS):
+        return "embedding"
+    return "chat"
+
 
 class VLLMBackend(InferenceBackend):
     def __init__(self, base_url: str, http_client: httpx.AsyncClient | None = None, api_key: str | None = None):
@@ -47,26 +62,34 @@ class VLLMBackend(InferenceBackend):
         """List available models with auto-discovered metadata.
 
         Tries Ollama's /api/tags for rich metadata (params, quant, family, size),
-        then enriches with /api/show for context_window. Falls back to the
-        OpenAI-compatible /v1/models if backend isn't Ollama.
+        then enriches with /api/show for context_window and /api/ps for running
+        status. Falls back to the OpenAI-compatible /v1/models if backend isn't
+        Ollama (all vLLM-listed models are assumed running).
         """
         # Try Ollama's /api/tags (rich metadata in one call)
         try:
             response = await self._client.get(f"{self.base_url}/api/tags", headers=self._headers)
             if response.status_code == 200:
                 models = self._parse_ollama_tags(response.json())
-                # Enrich with context_window from /api/show (parallel)
-                await self._enrich_context_windows(models)
+                # Enrich with context_window + running status (parallel)
+                _, running_names = await asyncio.gather(
+                    self._enrich_context_windows(models),
+                    self._fetch_running_model_names(),
+                )
+                for model in models:
+                    if model.id in running_names:
+                        model.status = "running"
                 return models
         except (httpx.ConnectError, httpx.TimeoutException):
             pass
 
         # Fall back to OpenAI-compatible /v1/models
+        # vLLM only lists loaded/running models, so mark all as running
         try:
             response = await self._client.get(f"{self.base_url}/v1/models", headers=self._headers)
             response.raise_for_status()
             data = response.json()
-            return [ModelInfo(id=m["id"], name=m.get("id", "")) for m in data.get("data", [])]
+            return [ModelInfo(id=m["id"], name=m.get("id", ""), status="running") for m in data.get("data", [])]
         except (httpx.ConnectError, httpx.TimeoutException) as e:
             raise BackendUnavailableError(f"Cannot reach inference backend: {e}")
 
@@ -123,6 +146,7 @@ class VLLMBackend(InferenceBackend):
             models.append(ModelInfo(
                 id=model_id,
                 name=name,
+                type=_classify_model_type(details.get("family"), model_id),
                 parameters=details.get("parameter_size"),
                 quantization=details.get("quantization_level"),
                 family=details.get("family"),
@@ -153,6 +177,16 @@ class VLLMBackend(InferenceBackend):
             family=details.get("family"),
             context_window=context_window,
         )
+
+    async def _fetch_running_model_names(self) -> set[str]:
+        """Fetch currently loaded models from Ollama /api/ps (best-effort)."""
+        try:
+            response = await self._client.get(f"{self.base_url}/api/ps", headers=self._headers)
+            if response.status_code == 200:
+                return {m.get("model", m.get("name", "")) for m in response.json().get("models", [])}
+        except (httpx.ConnectError, httpx.TimeoutException):
+            pass
+        return set()
 
     async def _enrich_context_windows(self, models: list[ModelInfo]) -> None:
         """Enrich model list with context_window from /api/show (best-effort, parallel)."""

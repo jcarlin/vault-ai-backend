@@ -124,7 +124,19 @@ async def ollama_tags():
                     "quantization_level": "Q4_0",
                     "format": "gguf",
                 },
-            }
+            },
+            {
+                "name": "nomic-embed-text:latest",
+                "model": "nomic-embed-text:latest",
+                "size": 274302450,
+                "digest": "def789abc012",
+                "details": {
+                    "family": "nomic-bert",
+                    "parameter_size": "137M",
+                    "quantization_level": "F16",
+                    "format": "gguf",
+                },
+            },
         ]
     }
 
@@ -133,10 +145,8 @@ class _ShowRequest(BaseModel):
     name: str
 
 
-@app.post("/api/show")
-async def ollama_show(request: _ShowRequest):
-    """Ollama /api/show — detailed model info including context length."""
-    return {
+_SHOW_DATA = {
+    "qwen2.5-32b-awq:latest": {
         "details": {
             "family": "qwen2",
             "parameter_size": "32.5B",
@@ -147,6 +157,39 @@ async def ollama_show(request: _ShowRequest):
             "general.architecture": "qwen2",
             "qwen2.context_length": 32768,
         },
+    },
+    "nomic-embed-text:latest": {
+        "details": {
+            "family": "nomic-bert",
+            "parameter_size": "137M",
+            "quantization_level": "F16",
+            "format": "gguf",
+        },
+        "model_info": {
+            "general.architecture": "nomic-bert",
+            "nomic-bert.context_length": 8192,
+        },
+    },
+}
+
+
+@app.post("/api/show")
+async def ollama_show(request: _ShowRequest):
+    """Ollama /api/show — detailed model info including context length."""
+    return _SHOW_DATA.get(request.name, _SHOW_DATA["qwen2.5-32b-awq:latest"])
+
+
+@app.get("/api/ps")
+async def ollama_ps():
+    """Ollama /api/ps — currently loaded/running models."""
+    return {
+        "models": [
+            {
+                "name": "qwen2.5-32b-awq:latest",
+                "model": "qwen2.5-32b-awq:latest",
+                "size": 21474836480,
+            }
+        ]
     }
 
 

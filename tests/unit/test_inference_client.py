@@ -7,7 +7,7 @@ from httpx import ASGITransport
 
 from app.core.exceptions import BackendUnavailableError
 from app.schemas.chat import ChatCompletionRequest, ChatMessage
-from app.services.inference.vllm_client import VLLMBackend
+from app.services.inference.vllm_client import VLLMBackend, _classify_model_type
 from tests.mocks.fake_vllm import app as fake_vllm_app
 
 
@@ -67,14 +67,25 @@ async def test_non_streaming_chat(vllm_backend: VLLMBackend):
 async def test_list_models(vllm_backend: VLLMBackend):
     """List models returns available models with rich metadata from Ollama-style backend."""
     models = await vllm_backend.list_models()
-    assert len(models) == 1
-    # Ollama /api/tags returns model IDs with :latest suffix
-    assert models[0].id == "qwen2.5-32b-awq:latest"
-    assert models[0].name == "qwen2.5-32b-awq"
-    assert models[0].parameters == "32.5B"
-    assert models[0].quantization == "Q4_0"
-    assert models[0].family == "qwen2"
-    assert models[0].context_window == 32768
+    assert len(models) == 2
+
+    # Chat model
+    chat_model = next(m for m in models if m.id == "qwen2.5-32b-awq:latest")
+    assert chat_model.name == "qwen2.5-32b-awq"
+    assert chat_model.type == "chat"
+    assert chat_model.status == "running"
+    assert chat_model.parameters == "32.5B"
+    assert chat_model.quantization == "Q4_0"
+    assert chat_model.family == "qwen2"
+    assert chat_model.context_window == 32768
+
+    # Embedding model
+    embed_model = next(m for m in models if m.id == "nomic-embed-text:latest")
+    assert embed_model.name == "nomic-embed-text"
+    assert embed_model.type == "embedding"
+    assert embed_model.status == "available"
+    assert embed_model.parameters == "137M"
+    assert embed_model.family == "nomic-bert"
 
 
 async def test_health_check_ok(vllm_backend: VLLMBackend):
@@ -101,3 +112,52 @@ async def test_chat_connection_error():
             pass
 
     await backend.close()
+
+
+# ── Model type classification tests ──────────────────────────────────────────
+
+
+class TestClassifyModelType:
+    def test_chat_by_default(self):
+        assert _classify_model_type(None, "qwen2.5-32b-awq") == "chat"
+
+    def test_chat_family(self):
+        assert _classify_model_type("qwen2", "qwen2.5-32b-awq:latest") == "chat"
+
+    def test_embedding_family_bert(self):
+        assert _classify_model_type("bert", "some-bert-model") == "embedding"
+
+    def test_embedding_family_nomic_bert(self):
+        assert _classify_model_type("nomic-bert", "nomic-embed-text:latest") == "embedding"
+
+    def test_embedding_family_mxbai(self):
+        assert _classify_model_type("mxbai", "mxbai-embed-large") == "embedding"
+
+    def test_embedding_name_keyword_embed(self):
+        assert _classify_model_type(None, "nomic-embed-text:latest") == "embedding"
+
+    def test_embedding_name_keyword_bge(self):
+        assert _classify_model_type(None, "bge-large-en-v1.5") == "embedding"
+
+    def test_embedding_name_keyword_e5(self):
+        assert _classify_model_type(None, "e5-large-v2") == "embedding"
+
+    def test_embedding_name_keyword_gte(self):
+        assert _classify_model_type(None, "gte-base") == "embedding"
+
+    def test_unknown_family_defaults_chat(self):
+        assert _classify_model_type("llama", "llama-3.3-8b:latest") == "chat"
+
+
+# ── Running status tests ─────────────────────────────────────────────────────
+
+
+async def test_running_status_from_api_ps(vllm_backend: VLLMBackend):
+    """Models listed in /api/ps are marked as running."""
+    models = await vllm_backend.list_models()
+    running = [m for m in models if m.status == "running"]
+    available = [m for m in models if m.status == "available"]
+    assert len(running) == 1
+    assert running[0].id == "qwen2.5-32b-awq:latest"
+    assert len(available) == 1
+    assert available[0].id == "nomic-embed-text:latest"

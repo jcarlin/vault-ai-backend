@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     vault_setup_flag_path: str = "/opt/vault/data/.setup_complete"
     vault_tls_cert_dir: str = "/opt/vault/tls"
 
-    model_config = {"env_prefix": "", "case_sensitive": False}
+    model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 
 settings = Settings()

@@ -37,6 +37,8 @@ def _merge_with_manifest(models: list[ModelInfo], manifest: list[dict]) -> list[
         enriched.append(ModelInfo(
             id=model.id,
             name=extra.get("name") or model.name,
+            type=extra.get("type") or model.type,
+            status=model.status,  # Always from live backend
             parameters=model.parameters or extra.get("parameters"),
             quantization=model.quantization or extra.get("quantization"),
             context_window=model.context_window or extra.get("context_window"),
@@ -46,6 +48,13 @@ def _merge_with_manifest(models: list[ModelInfo], manifest: list[dict]) -> list[
             size_bytes=model.size_bytes,
         ))
     return enriched
+
+
+def _model_sort_key(model: ModelInfo) -> tuple[int, int, str]:
+    """Sort key: running chat > available chat > running embedding > available embedding."""
+    type_rank = 0 if model.type == "chat" else 1
+    status_rank = 0 if model.status == "running" else 1
+    return (type_rank, status_rank, model.name.lower())
 
 
 @router.get("/v1/models")
@@ -69,4 +78,5 @@ async def list_models(request: Request) -> ModelListResponse:
     if not models and manifest:
         models = [ModelInfo(**m) for m in manifest]
 
+    models.sort(key=_model_sort_key)
     return ModelListResponse(data=models)

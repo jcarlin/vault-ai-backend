@@ -35,6 +35,7 @@ class TestModelsEndpoint:
         data = response.json()
         assert len(data["data"]) >= 1
 
+        # First model should be the chat model (sorted: chat before embedding)
         model = data["data"][0]
         # These come from the Ollama /api/tags mock
         assert model["parameters"] == "32.5B"
@@ -42,6 +43,8 @@ class TestModelsEndpoint:
         assert model["family"] == "qwen2"
         assert model["size_bytes"] == 21474836480
         assert model["vram_required_gb"] is not None
+        assert model["type"] == "chat"
+        assert model["status"] == "running"
 
     async def test_enriches_with_context_window(self, auth_client):
         """GET /v1/models includes context_window from /api/show enrichment."""
@@ -58,3 +61,28 @@ class TestModelsEndpoint:
         # The manifest has a description for qwen2.5-32b-awq, and the mock
         # returns qwen2.5-32b-awq:latest — merge should match via prefix strip
         assert model["description"] is not None
+
+    async def test_type_field_on_models(self, auth_client):
+        """GET /v1/models includes type field distinguishing chat from embedding."""
+        response = await auth_client.get("/v1/models")
+        data = response.json()
+        types = {m["id"]: m["type"] for m in data["data"]}
+        assert types["qwen2.5-32b-awq:latest"] == "chat"
+        assert types["nomic-embed-text:latest"] == "embedding"
+
+    async def test_status_field_on_models(self, auth_client):
+        """GET /v1/models includes status field from /api/ps."""
+        response = await auth_client.get("/v1/models")
+        data = response.json()
+        statuses = {m["id"]: m["status"] for m in data["data"]}
+        assert statuses["qwen2.5-32b-awq:latest"] == "running"
+        assert statuses["nomic-embed-text:latest"] == "available"
+
+    async def test_sorting_chat_before_embedding(self, auth_client):
+        """GET /v1/models sorts chat models before embedding models."""
+        response = await auth_client.get("/v1/models")
+        data = response.json()
+        models = data["data"]
+        assert len(models) == 2
+        assert models[0]["type"] == "chat"
+        assert models[1]["type"] == "embedding"

@@ -1,9 +1,13 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
 class ModelInfo(BaseModel):
     id: str
     name: str
+    type: Literal["chat", "embedding"] = "chat"
+    status: Literal["running", "available"] = "available"
     parameters: str | None = None
     quantization: str | None = None
     context_window: int | None = None
