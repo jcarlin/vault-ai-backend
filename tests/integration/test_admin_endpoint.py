@@ -186,6 +186,8 @@ class TestConfigEndpoints:
         assert data["timezone"] == "UTC"
         assert data["auto_update"] is False
         assert data["session_timeout"] == 3600
+        assert data["debug_logging"] is False
+        assert data["diagnostics_enabled"] is True
 
     async def test_update_system_settings(self, auth_client):
         """PUT /vault/admin/config/system updates and returns settings."""
@@ -197,6 +199,23 @@ class TestConfigEndpoints:
         data = response.json()
         assert data["timezone"] == "America/New_York"
         assert data["auto_update"] is True
+
+    async def test_update_debug_settings(self, auth_client):
+        """PUT /vault/admin/config/system can toggle debug_logging and diagnostics_enabled."""
+        response = await auth_client.put(
+            "/vault/admin/config/system",
+            json={"debug_logging": True, "diagnostics_enabled": False},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["debug_logging"] is True
+        assert data["diagnostics_enabled"] is False
+
+        # Verify persisted via GET
+        get_resp = await auth_client.get("/vault/admin/config/system")
+        assert get_resp.status_code == 200
+        assert get_resp.json()["debug_logging"] is True
+        assert get_resp.json()["diagnostics_enabled"] is False
 
 
 class TestAdminAuth:

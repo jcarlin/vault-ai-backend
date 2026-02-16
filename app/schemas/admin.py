@@ -70,6 +70,8 @@ class SystemSettingsResponse(BaseModel):
     telemetry: bool
     session_timeout: int
     max_upload_size: int
+    debug_logging: bool
+    diagnostics_enabled: bool
 
 
 class SystemSettingsUpdate(BaseModel):
@@ -79,3 +81,5 @@ class SystemSettingsUpdate(BaseModel):
     telemetry: bool | None = None
     session_timeout: int | None = None
     max_upload_size: int | None = None
+    debug_logging: bool | None = None
+    diagnostics_enabled: bool | None = None

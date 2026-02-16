@@ -26,6 +26,8 @@ SYSTEM_DEFAULTS = {
     "system.telemetry": "false",
     "system.session_timeout": "3600",
     "system.max_upload_size": "1073741824",
+    "system.debug_logging": "false",
+    "system.diagnostics_enabled": "true",
 }
 
 
@@ -212,6 +214,8 @@ class AdminService:
             "telemetry": rows.get("system.telemetry", "false").lower() == "true",
             "session_timeout": int(rows.get("system.session_timeout", "3600")),
             "max_upload_size": int(rows.get("system.max_upload_size", "1073741824")),
+            "debug_logging": rows.get("system.debug_logging", "false").lower() == "true",
+            "diagnostics_enabled": rows.get("system.diagnostics_enabled", "true").lower() == "true",
         }
 
     async def update_system_settings(self, **updates) -> dict:
