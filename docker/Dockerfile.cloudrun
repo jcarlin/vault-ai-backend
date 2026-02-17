@@ -27,7 +27,7 @@ COPY config/ /app/config/
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     VAULT_DEPLOYMENT_MODE=cloud \
-    VAULT_DB_URL=sqlite+aiosqlite:///tmp/vault.db \
+    VAULT_DB_URL=sqlite+aiosqlite:////tmp/vault.db \
     VAULT_MODELS_MANIFEST=/app/config/models.json \
     VAULT_SETUP_FLAG_PATH=/tmp/.setup_complete
 
