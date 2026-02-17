@@ -17,6 +17,12 @@
       "context_window": 131072,
       "vram_required_gb": 6,
       "description": "Fast model for simple tasks. Lower capability but 4x faster."
+    },
+    {
+      "id": "gemini-2.0-flash",
+      "name": "Gemini 2.0 Flash",
+      "context_window": 1048576,
+      "description": "Google Gemini 2.0 Flash — fast cloud inference via OpenAI-compatible API."
     }
   ]
 }

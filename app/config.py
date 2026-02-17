@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # vLLM backend
     vllm_base_url: str = "http://localhost:8001"
     vllm_api_key: str | None = None
+    vllm_api_prefix: str = "/v1"
 
     # Security
     vault_secret_key: str = "dev-secret-key-change-in-production"

@@ -56,11 +56,18 @@ async def app_with_db(db_engine):
     """FastAPI app wired to the in-memory test database and fake vLLM backend."""
     import app.core.database as db_module
     import app.core.middleware as mw_module
+    from app.config import settings
 
     # Patch the module-level engine and session factory
     original_engine = db_module.engine
     original_session = db_module.async_session
     original_mw_session = mw_module.async_session
+
+    # Disable access gate for tests (run as Cube mode regardless of .env)
+    original_access_key = settings.vault_access_key
+    original_deployment_mode = settings.vault_deployment_mode
+    settings.vault_access_key = None
+    settings.vault_deployment_mode = "cube"
 
     test_session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
     db_module.engine = db_engine
@@ -86,6 +93,8 @@ async def app_with_db(db_engine):
     db_module.engine = original_engine
     db_module.async_session = original_session
     mw_module.async_session = original_mw_session
+    settings.vault_access_key = original_access_key
+    settings.vault_deployment_mode = original_deployment_mode
 
 
 @pytest_asyncio.fixture

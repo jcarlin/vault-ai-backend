@@ -51,8 +51,8 @@ async def _seed_admin_key() -> None:
     # Use deterministic key from env var, or fall back to random generation
     raw_key = settings.vault_admin_api_key
     if raw_key:
-        if not raw_key.startswith("vault_sk_") or len(raw_key) != 56:
-            logger.error("invalid_vault_admin_api_key", hint="Must be vault_sk_ + 48 hex chars (56 total)")
+        if not raw_key.startswith("vault_sk_") or len(raw_key) != 57:
+            logger.error("invalid_vault_admin_api_key", hint="Must be vault_sk_ + 48 hex chars (57 total)")
             return
     else:
         from app.core.security import generate_api_key
@@ -106,6 +106,7 @@ async def lifespan(app: FastAPI):
         base_url=settings.vllm_base_url,
         http_client=http_client,
         api_key=settings.vllm_api_key,
+        api_prefix=settings.vllm_api_prefix,
     )
     app.state.inference_backend = backend
 

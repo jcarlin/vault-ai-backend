@@ -48,7 +48,8 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.IMAGE }}:${{ github.sha }}
           env_vars: |
-            VLLM_BASE_URL=${{ secrets.VLLM_BASE_URL }}
+            VLLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+            VLLM_API_PREFIX=
             VAULT_DEPLOYMENT_MODE=cloud
             VAULT_LOG_LEVEL=info
             VAULT_CORS_ORIGINS=*
@@ -56,6 +57,7 @@ jobs:
             VAULT_SECRET_KEY=vault-secret-key:latest
             VAULT_ACCESS_KEY=vault-access-key:latest
             VAULT_ADMIN_API_KEY=vault-admin-api-key:latest
+            VLLM_API_KEY=vault-vllm-api-key:latest
           flags: |
             --allow-unauthenticated
             --memory=512Mi

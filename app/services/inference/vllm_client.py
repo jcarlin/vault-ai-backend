@@ -28,8 +28,9 @@ def _classify_model_type(family: str | None, model_id: str) -> str:
 
 
 class VLLMBackend(InferenceBackend):
-    def __init__(self, base_url: str, http_client: httpx.AsyncClient | None = None, api_key: str | None = None):
+    def __init__(self, base_url: str, http_client: httpx.AsyncClient | None = None, api_key: str | None = None, api_prefix: str = "/v1"):
         self.base_url = base_url.rstrip("/")
+        self._api_prefix = api_prefix.rstrip("/")
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
@@ -37,7 +38,7 @@ class VLLMBackend(InferenceBackend):
 
     async def chat_completion(self, request: ChatCompletionRequest) -> AsyncIterator[str]:
         """Proxy chat completion to vLLM, yielding SSE lines."""
-        url = f"{self.base_url}/v1/chat/completions"
+        url = f"{self.base_url}{self._api_prefix}/chat/completions"
         payload = request.model_dump(exclude_none=True)
 
         try:
@@ -86,7 +87,7 @@ class VLLMBackend(InferenceBackend):
         # Fall back to OpenAI-compatible /v1/models
         # vLLM only lists loaded/running models, so mark all as running
         try:
-            response = await self._client.get(f"{self.base_url}/v1/models", headers=self._headers)
+            response = await self._client.get(f"{self.base_url}{self._api_prefix}/models", headers=self._headers)
             response.raise_for_status()
             data = response.json()
             return [ModelInfo(id=m["id"], name=m.get("id", ""), status="running") for m in data.get("data", [])]
