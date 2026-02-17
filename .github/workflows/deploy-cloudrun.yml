@@ -2,7 +2,7 @@ name: Build & Deploy to Cloud Run
 
 on:
   push:
-    branches: [main]
+    branches: [main, gcp]
 
 env:
   PROJECT_ID: vault-ai-487703
