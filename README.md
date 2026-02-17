@@ -1,6 +1,6 @@
 # Vault AI Backend
 
-FastAPI gateway for the Vault Cube — proxies to vLLM (production) or Ollama (local dev).
+FastAPI gateway for the Vault Cube — proxies to vLLM (production) or Ollama (local dev). Deploys to Cloud Run on merge to `main`.
 
 ## Setup
 
@@ -32,6 +32,31 @@ make chat KEY=vault_sk_...
 make models KEY=vault_sk_...
 ```
 
+## Cloud Run Deployment
+
+Merging to `main` triggers a GitHub Actions workflow that builds the Docker image and deploys to Cloud Run.
+
+**How it works:**
+1. Builds `docker/Dockerfile.cloudrun`
+2. Pushes to Artifact Registry (`us-central1-docker.pkg.dev/vault-ai-487703/vault-ai/vault-ai-backend`)
+3. Deploys to Cloud Run (`vault-ai-backend` service, `us-central1`)
+
+**Auth:** Workload Identity Federation (keyless OIDC) — no service account keys in the repo.
+
+**Runtime secrets** (`VAULT_SECRET_KEY`, `VAULT_ACCESS_KEY`) are injected from GCP Secret Manager, not stored in the repo or workflow.
+
+**Cloud mode differences:**
+- `VAULT_DEPLOYMENT_MODE=cloud` — skips the first-boot setup wizard and auto-seeds an admin API key
+- `VAULT_ACCESS_KEY` — shared secret gate via `X-Vault-Access-Key` header (disabled on Cube)
+
+### GitHub Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `WIF_PROVIDER` | Workload Identity Federation provider resource name |
+| `WIF_SERVICE_ACCOUNT` | GCP service account for deployment |
+| `VLLM_BASE_URL` | Inference backend URL |
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -42,6 +67,8 @@ make models KEY=vault_sk_...
 | `VAULT_DB_URL` | `sqlite+aiosqlite:///data/vault.db` | Database connection |
 | `VAULT_LOG_LEVEL` | `info` | Log level |
 | `VAULT_CORS_ORIGINS` | `https://vault-cube.local` | Allowed CORS origins |
+| `VAULT_DEPLOYMENT_MODE` | `cube` | `cube` (default) or `cloud` |
+| `VAULT_ACCESS_KEY` | unset | Shared secret for cloud access gate (disabled when unset) |
 
 ## Makefile Commands
 
