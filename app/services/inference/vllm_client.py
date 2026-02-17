@@ -90,7 +90,7 @@ class VLLMBackend(InferenceBackend):
             response = await self._client.get(f"{self.base_url}{self._api_prefix}/models", headers=self._headers)
             response.raise_for_status()
             data = response.json()
-            return [ModelInfo(id=m["id"], name=m.get("id", ""), status="running") for m in data.get("data", [])]
+            return [ModelInfo(id=m["id"].removeprefix("models/"), name=m.get("id", "").removeprefix("models/"), status="running") for m in data.get("data", [])]
         except (httpx.ConnectError, httpx.TimeoutException) as e:
             raise BackendUnavailableError(f"Cannot reach inference backend: {e}")
 
