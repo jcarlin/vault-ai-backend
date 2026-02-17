@@ -50,7 +50,11 @@ async def _seed_admin_key() -> None:
 
     auth = AuthService()
     raw_key, _row = await auth.create_key(label="Cloud Admin (auto-generated)", scope="admin")
-    logger.info("cloud_admin_key_seeded", key_prefix=raw_key[:12])
+    logger.warning(
+        "cloud_admin_key_seeded",
+        raw_key=raw_key,
+        note="This key is shown ONCE at startup. Save it now — it cannot be retrieved later.",
+    )
 
 
 @asynccontextmanager
@@ -106,8 +110,11 @@ app = FastAPI(
 # Exception handler
 app.add_exception_handler(VaultError, vault_error_handler)
 
-# Middleware (order matters: outermost first)
-app.add_middleware(RequestLoggingMiddleware)
+# Middleware (Starlette: last-added = outermost. Execution order top to bottom.)
+# 1. RequestLogging (outermost) — logs all requests including auth/gate rejections
+# 2. CORS — handles preflight before auth
+# 3. AccessGate — shared secret check (cloud mode only)
+# 4. Auth — Bearer token validation (innermost)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(AccessGateMiddleware)
 app.add_middleware(
@@ -117,6 +124,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 # Routes
 app.include_router(v1_router)

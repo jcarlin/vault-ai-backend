@@ -35,9 +35,11 @@ USER vault
 
 EXPOSE 8000
 
+# Cloud Run ignores HEALTHCHECK (uses its own HTTP probes).
+# This is only used when running locally with `docker run`.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import httpx; r = httpx.get('http://localhost:8000/vault/health'); exit(0 if r.status_code == 200 else 1)"
+    CMD python -c "import httpx; r = httpx.get('http://localhost:${PORT:-8000}/vault/health'); exit(0 if r.status_code == 200 else 1)"
 
-# Cloud Run sets $PORT; default to 8000 for local testing
-# Use python -m to avoid broken shebangs from cross-stage venv copy
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Cloud Run sets $PORT (typically 8080); default to 8000 for local testing.
+# Must use shell form (not exec form) so $PORT is expanded by the shell.
+CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

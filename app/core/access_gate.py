@@ -23,8 +23,8 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         expected = settings.vault_access_key
-        if expected is None:
-            # Cube mode — no access gate
+        if not expected:
+            # Cube mode — no access gate (None or empty string)
             return await call_next(request)
 
         if request.url.path in ACCESS_GATE_EXEMPT:
