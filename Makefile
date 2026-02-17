@@ -8,6 +8,10 @@ install:
 dev:
 	VLLM_BASE_URL=http://localhost:11434 uvicorn app.main:app --reload --port 8000
 
+# Start backend pointed at Gemini (cloud mode, reads .env for keys)
+dev-cloud:
+	uvicorn app.main:app --reload --port 8000
+
 # Start backend pointed at mock vLLM (canned responses, no LLM needed)
 mock:
 	uvicorn tests.mocks.fake_vllm:app --port 8001 &
