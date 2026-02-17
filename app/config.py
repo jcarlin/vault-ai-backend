@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Cloud deployment
     vault_access_key: str | None = None  # Shared secret gate (None = disabled, for Cube)
     vault_deployment_mode: str = "cube"  # "cube" or "cloud"
+    vault_admin_api_key: str | None = None  # Deterministic admin key for cloud (vault_sk_<48 hex>)
 
     # HTTP client timeouts (seconds)
     vault_http_connect_timeout: float = 5.0

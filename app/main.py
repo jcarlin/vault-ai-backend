@@ -41,20 +41,42 @@ async def _seed_admin_key() -> None:
     """Create a default admin API key if the DB has no active keys (cloud first-boot)."""
     from sqlalchemy import func, select
 
-    from app.services.auth import AuthService
+    from app.core.security import hash_api_key, get_key_prefix
 
     async with async_session() as session:
         count = await session.scalar(select(func.count()).select_from(ApiKey).where(ApiKey.is_active == True))  # noqa: E712
         if count and count > 0:
             return
 
-    auth = AuthService()
-    raw_key, _row = await auth.create_key(label="Cloud Admin (auto-generated)", scope="admin")
-    logger.warning(
-        "cloud_admin_key_seeded",
-        raw_key=raw_key,
-        note="This key is shown ONCE at startup. Save it now — it cannot be retrieved later.",
-    )
+    # Use deterministic key from env var, or fall back to random generation
+    raw_key = settings.vault_admin_api_key
+    if raw_key:
+        if not raw_key.startswith("vault_sk_") or len(raw_key) != 56:
+            logger.error("invalid_vault_admin_api_key", hint="Must be vault_sk_ + 48 hex chars (56 total)")
+            return
+    else:
+        from app.core.security import generate_api_key
+        raw_key = generate_api_key()
+
+    async with async_session() as session:
+        key_row = ApiKey(
+            key_hash=hash_api_key(raw_key),
+            key_prefix=get_key_prefix(raw_key),
+            label="Cloud Admin (auto-generated)",
+            scope="admin",
+            is_active=True,
+        )
+        session.add(key_row)
+        await session.commit()
+
+    if settings.vault_admin_api_key:
+        logger.info("cloud_admin_key_seeded", prefix=get_key_prefix(raw_key), source="env")
+    else:
+        logger.warning(
+            "cloud_admin_key_seeded",
+            raw_key=raw_key,
+            note="This key is shown ONCE at startup. Save it now — it cannot be retrieved later.",
+        )
 
 
 @asynccontextmanager

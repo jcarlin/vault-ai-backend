@@ -55,6 +55,7 @@ jobs:
           secrets: |
             VAULT_SECRET_KEY=vault-secret-key:latest
             VAULT_ACCESS_KEY=vault-access-key:latest
+            VAULT_ADMIN_API_KEY=vault-admin-api-key:latest
           flags: |
             --allow-unauthenticated
             --memory=512Mi
