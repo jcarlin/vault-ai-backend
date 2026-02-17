@@ -27,6 +27,10 @@ data/
 .coverage
 htmlcov/
 
+# GCP service account keys
+gen-lang-client-*.json
+*-sa-key.json
+
 # OS
 .DS_Store
 Thumbs.db

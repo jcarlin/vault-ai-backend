@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import v1_router
 from app.config import settings
-from app.core.database import close_db, init_db
+from app.core.access_gate import AccessGateMiddleware
+from app.core.database import ApiKey, async_session, close_db, init_db
 from app.core.exceptions import VaultError, vault_error_handler
 from app.core.middleware import AuthMiddleware, RequestLoggingMiddleware
 from app.services.inference.vllm_client import VLLMBackend
@@ -36,14 +37,44 @@ structlog.configure(
 logger = structlog.get_logger()
 
 
+async def _seed_admin_key() -> None:
+    """Create a default admin API key if the DB has no active keys (cloud first-boot)."""
+    from sqlalchemy import func, select
+
+    from app.services.auth import AuthService
+
+    async with async_session() as session:
+        count = await session.scalar(select(func.count()).select_from(ApiKey).where(ApiKey.is_active == True))  # noqa: E712
+        if count and count > 0:
+            return
+
+    auth = AuthService()
+    raw_key, _row = await auth.create_key(label="Cloud Admin (auto-generated)", scope="admin")
+    logger.info("cloud_admin_key_seeded", key_prefix=raw_key[:12])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     await init_db()
 
+    # Cloud mode: skip setup wizard, seed admin key
+    if settings.vault_deployment_mode == "cloud":
+        app.state.setup_complete = True
+        await _seed_admin_key()
+    else:
+        # Check if first-boot setup has been completed (flag file = fast check, no DB)
+        setup_flag = Path(settings.vault_setup_flag_path)
+        app.state.setup_complete = setup_flag.exists()
+
     # Create shared httpx client and inference backend
     http_client = httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
+        timeout=httpx.Timeout(
+            connect=settings.vault_http_connect_timeout,
+            read=settings.vault_http_read_timeout,
+            write=5.0,
+            pool=5.0,
+        )
     )
     backend = VLLMBackend(
         base_url=settings.vllm_base_url,
@@ -52,13 +83,11 @@ async def lifespan(app: FastAPI):
     )
     app.state.inference_backend = backend
 
-    # Check if first-boot setup has been completed (flag file = fast check, no DB)
-    setup_flag = Path(settings.vault_setup_flag_path)
-    app.state.setup_complete = setup_flag.exists()
     logger.info(
         "vault_backend_starting",
         vllm_url=settings.vllm_base_url,
         setup_complete=app.state.setup_complete,
+        deployment_mode=settings.vault_deployment_mode,
     )
     yield
 
@@ -80,6 +109,7 @@ app.add_exception_handler(VaultError, vault_error_handler)
 # Middleware (order matters: outermost first)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(AuthMiddleware)
+app.add_middleware(AccessGateMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.vault_cors_origins.split(","),
