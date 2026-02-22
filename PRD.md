@@ -8,7 +8,9 @@
 
 **Product**: Self-hosted AI inference and fine-tuning platform for air-gapped enterprise deployments.
 
-**Hardware Target**: 4× RTX 5090 (128GB total VRAM), Threadripper PRO 7975WX, 256GB ECC RAM, 8TB NVMe
+**Hardware Target (production goal)**: 4× RTX 5090 (128GB total VRAM), Threadripper PRO 7975WX, 256GB ECC RAM, 8TB NVMe
+
+> **Current dev hardware:** 2× RTX 5090 FE (1 installed, 32GB VRAM available). GPU allocation diagrams below show the full production target.
 
 **Timeline**: 3–6 months, solo dev + AI assistance
 

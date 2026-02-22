@@ -31,6 +31,11 @@ class KeyCreate(BaseModel):
     notes: str | None = None
 
 
+class KeyUpdate(BaseModel):
+    label: str | None = None
+    is_active: bool | None = None
+
+
 class KeyResponse(BaseModel):
     id: int
     key_prefix: str

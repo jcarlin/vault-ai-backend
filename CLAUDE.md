@@ -28,7 +28,7 @@
 - Frontend (vault-ai-frontend) wired to all 31 Rev 1+2 endpoints — chat streaming, conversations, admin, settings, insights all using real API calls
 
 ### What's next
-- Deploy on the Cube once GPU track completes (swap mock for real vLLM)
+- Deploy on the Cube — GPU stack validated (vLLM via NGC container, CUDA 12.8, Driver 570) — swap mock for real vLLM
 - End-to-end testing with real hardware
 - Enforce API key scopes (admin vs user — currently stored but not checked by endpoints)
 - Wire frontend to first-boot wizard endpoints (currently uses localStorage)

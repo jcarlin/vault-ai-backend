@@ -1,10 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.core.exceptions import NotFoundError
+from app.dependencies import require_admin
 from app.schemas.admin import (
     KeyCreate,
     KeyCreateResponse,
     KeyResponse,
+    KeyUpdate,
     NetworkConfigResponse,
     NetworkConfigUpdate,
     SystemSettingsResponse,
@@ -15,7 +17,7 @@ from app.schemas.admin import (
 )
 from app.services.admin import AdminService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 def _format_dt(dt) -> str | None:
@@ -128,6 +130,22 @@ async def create_key(body: KeyCreate) -> KeyCreateResponse:
         key_prefix=key_row.key_prefix,
         label=key_row.label,
         scope=key_row.scope,
+    )
+
+
+@router.put("/vault/admin/keys/{key_id}")
+async def update_key(key_id: int, body: KeyUpdate) -> KeyResponse:
+    service = AdminService()
+    updates = body.model_dump(exclude_none=True)
+    key_row = await service.update_key_by_id(key_id, **updates)
+    return KeyResponse(
+        id=key_row.id,
+        key_prefix=key_row.key_prefix,
+        label=key_row.label,
+        scope=key_row.scope,
+        is_active=key_row.is_active,
+        created_at=_format_dt(key_row.created_at),
+        last_used_at=_format_dt(key_row.last_used_at),
     )
 
 

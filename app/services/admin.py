@@ -121,6 +121,23 @@ class AdminService:
     async def create_key(self, label: str, scope: str = "user", notes: str | None = None) -> tuple[str, ApiKey]:
         return await self._auth_service.create_key(label=label, scope=scope, notes=notes)
 
+    async def update_key_by_id(self, key_id: int, **updates) -> ApiKey:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(ApiKey).where(ApiKey.id == key_id)
+            )
+            key_row = result.scalar_one_or_none()
+            if key_row is None:
+                raise NotFoundError(f"API key with id {key_id} not found.")
+
+            for field, value in updates.items():
+                if value is not None:
+                    setattr(key_row, field, value)
+
+            await session.commit()
+            await session.refresh(key_row)
+            return key_row
+
     async def revoke_key_by_id(self, key_id: int) -> bool:
         async with self._session_factory() as session:
             result = await session.execute(

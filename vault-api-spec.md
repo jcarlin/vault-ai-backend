@@ -1,8 +1,8 @@
 # Vault Cube — API Endpoint Specification
 
-**Version:** 0.4 (First-boot wizard endpoints shipped)
+**Version:** 0.5 (Admin scope enforcement + key update endpoint)
 **Date:** February 2026
-**Status:** 38 endpoints shipped (31 Rev 1+2 + 7 first-boot wizard), 117 tests. See `CLAUDE.md` for current scope.
+**Status:** 39 endpoints shipped (32 Rev 1+2 + 7 first-boot wizard), 140 tests. Admin scope enforcement active. See `CLAUDE.md` for current scope.
 
 ---
 
@@ -147,7 +147,7 @@ User management, API keys, configuration, and audit trail.
 |--------|----------|-------------|------|--------|
 | GET | `/vault/admin/keys` | List all API keys (shows prefix, label, scope, created date — never full key). | Admin | ✅ Rev 2 |
 | POST | `/vault/admin/keys` | Generate new API key. Set label, scope (user/admin), rate limit, expiry. Full key shown once. | Admin | ✅ Rev 2 |
-| PUT | `/vault/admin/keys/{key_id}` | Update key metadata: label, rate limit, active/disabled. | Admin | |
+| PUT | `/vault/admin/keys/{key_id}` | Update key metadata: label, rate limit, active/disabled. | Admin | ✅ Rev 2 |
 | DELETE | `/vault/admin/keys/{key_id}` | Revoke an API key. Immediately effective. | Admin | ✅ Rev 2 |
 
 ### 6.2 User Management (Post-MVP: LDAP/SSO Integration)

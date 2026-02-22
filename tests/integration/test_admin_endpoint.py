@@ -43,6 +43,28 @@ async def auth_client(admin_app, db_engine):
 
 
 @pytest_asyncio.fixture
+async def user_client(admin_app, db_engine):
+    """Authenticated client with a user-scoped (non-admin) API key."""
+    session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    raw_key = generate_api_key()
+    async with session_factory() as session:
+        key_row = ApiKey(
+            key_hash=hash_api_key(raw_key),
+            key_prefix=get_key_prefix(raw_key),
+            label="user-scope-test",
+            scope="user",
+            is_active=True,
+        )
+        session.add(key_row)
+        await session.commit()
+
+    transport = ASGITransport(app=admin_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        client.headers["Authorization"] = f"Bearer {raw_key}"
+        yield client
+
+
+@pytest_asyncio.fixture
 async def anon_client(admin_app):
     """Unauthenticated client hitting the admin-enabled app."""
     transport = ASGITransport(app=admin_app)
@@ -144,6 +166,47 @@ class TestApiKeyEndpoints:
         assert data["scope"] == "admin"
         assert "id" in data
 
+    async def test_update_key_label(self, auth_client):
+        """PUT /vault/admin/keys/{id} updates the key label."""
+        create_resp = await auth_client.post(
+            "/vault/admin/keys",
+            json={"label": "original-label", "scope": "user"},
+        )
+        key_id = create_resp.json()["id"]
+
+        response = await auth_client.put(
+            f"/vault/admin/keys/{key_id}",
+            json={"label": "updated-label"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["label"] == "updated-label"
+        assert data["id"] == key_id
+
+    async def test_update_key_deactivate(self, auth_client):
+        """PUT /vault/admin/keys/{id} can deactivate a key."""
+        create_resp = await auth_client.post(
+            "/vault/admin/keys",
+            json={"label": "to-deactivate", "scope": "user"},
+        )
+        key_id = create_resp.json()["id"]
+
+        response = await auth_client.put(
+            f"/vault/admin/keys/{key_id}",
+            json={"is_active": False},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_active"] is False
+
+    async def test_update_key_not_found(self, auth_client):
+        """PUT /vault/admin/keys/{id} returns 404 for missing key."""
+        response = await auth_client.put(
+            "/vault/admin/keys/99999",
+            json={"label": "nope"},
+        )
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+
     async def test_revoke_key(self, auth_client):
         """DELETE /vault/admin/keys/{id} revokes the key."""
         create_resp = await auth_client.post(
@@ -224,3 +287,19 @@ class TestAdminAuth:
         response = await anon_client.get("/vault/admin/users")
         assert response.status_code == 401
         assert response.json()["error"]["code"] == "authentication_required"
+
+    async def test_403_with_user_scope(self, user_client):
+        """Admin endpoints reject user-scoped API keys with 403."""
+        response = await user_client.get("/vault/admin/users")
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "insufficient_permissions"
+
+    async def test_403_user_scope_on_keys(self, user_client):
+        """User-scoped keys cannot manage API keys."""
+        response = await user_client.get("/vault/admin/keys")
+        assert response.status_code == 403
+
+    async def test_403_user_scope_on_config(self, user_client):
+        """User-scoped keys cannot access admin config."""
+        response = await user_client.get("/vault/admin/config/network")
+        assert response.status_code == 403
