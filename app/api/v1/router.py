@@ -24,6 +24,9 @@ from app.api.v1.metrics import router as metrics_router
 # Epic 9
 from app.api.v1.quarantine import router as quarantine_router
 
+# Epic 11
+from app.api.v1.diagnostics import router as diagnostics_router
+
 v1_router = APIRouter()
 
 # Rev 1
@@ -54,3 +57,6 @@ v1_router.include_router(metrics_router, tags=["Metrics"])
 
 # Epic 9
 v1_router.include_router(quarantine_router, tags=["Quarantine"])
+
+# Epic 11
+v1_router.include_router(diagnostics_router, tags=["Diagnostics"])

@@ -51,6 +51,20 @@ class Settings(BaseSettings):
     vault_yara_rules_dir: str = "/opt/vault/quarantine/signatures/yara_rules"
     vault_blacklist_path: str = "/opt/vault/quarantine/blacklist.json"
 
+    # LDAP / SSO
+    vault_ldap_enabled: bool = False
+    vault_ldap_url: str = "ldap://localhost:389"
+    vault_ldap_bind_dn: str = ""
+    vault_ldap_bind_password: str = ""
+    vault_ldap_user_search_base: str = ""
+    vault_ldap_group_search_base: str = ""
+    vault_ldap_user_search_filter: str = "(sAMAccountName={username})"
+    vault_ldap_use_ssl: bool = False
+
+    # JWT
+    vault_jwt_algorithm: str = "HS256"
+    vault_jwt_expiry_seconds: int = 3600
+
     model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 

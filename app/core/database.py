@@ -28,6 +28,9 @@ class ApiKey(Base):
     )
     last_used_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True
+    )
 
 
 # ── Rev 2: Users ─────────────────────────────────────────────────────────────
@@ -45,6 +48,9 @@ class User(Base):
         DateTime, server_default=func.now()
     )
     last_active: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ldap_dn: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    auth_source: Mapped[str] = mapped_column(String(20), default="local")
 
 
 # ── Rev 2: Conversations ─────────────────────────────────────────────────────
@@ -65,6 +71,7 @@ class Conversation(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
 
 class Message(Base):
@@ -142,6 +149,21 @@ class SystemConfig(Base):
     key: Mapped[str] = mapped_column(String(255), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+
+
+# ── Epic 14: LDAP Group Mapping ─────────────────────────────────────────────
+
+
+class LdapGroupMapping(Base):
+    __tablename__ = "ldap_group_mappings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ldap_group_dn: Mapped[str] = mapped_column(String(1000), unique=True)
+    vault_role: Mapped[str] = mapped_column(String(20), default="user")
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now()
     )
 

@@ -47,6 +47,7 @@ class ConversationService:
             # Get conversations ordered by updated_at desc
             stmt = (
                 select(Conversation)
+                .where(Conversation.archived == False)  # noqa: E712
                 .order_by(Conversation.updated_at.desc())
                 .limit(limit)
                 .offset(offset)
