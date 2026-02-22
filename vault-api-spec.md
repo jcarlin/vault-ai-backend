@@ -1,8 +1,8 @@
 # Vault Cube — API Endpoint Specification
 
-**Version:** 0.6 (Epic 8 — Full API Gateway)
+**Version:** 0.7 (Spec sync — backup, diagnostics, archiving, data management, developer tools)
 **Date:** February 2026
-**Status:** 63 endpoints shipped (32 Rev 1+2 + 7 first-boot wizard + 24 Epic 8), 234 tests. Admin scope enforcement active. See `CLAUDE.md` for current scope.
+**Status:** 124 endpoints specified (72 built, 52 planned). 310 tests. Admin scope enforcement active. See `CLAUDE.md` for current scope.
 
 ---
 
@@ -78,6 +78,7 @@ Local conversation storage for the chat UI. All data stays on-device.
 - Conversations are stored in local SQLite, scoped per API key / user.
 - System prompts are stored per-conversation, allowing different personas or instructions per thread.
 - Export enables customers to move conversation history off the device for archival.
+- After the first message in a conversation, the model is locked and cannot be changed. Each message records which model generated it for audit trail purposes.
 - Search across conversations is a post-MVP feature.
 
 ---
@@ -120,6 +121,7 @@ Endpoints the dashboard and admin tools use to display system status.
 | POST | `/vault/system/services/{name}/restart` | Restart a specific service. | Admin | ✅ Epic 8 |
 | GET | `/vault/system/logs` | Paginated system logs. Filterable by service, severity, time range. | Admin | ✅ Epic 8 |
 | GET | `/vault/system/logs/stream` | WebSocket endpoint for real-time log streaming. | Admin | |
+| GET | `/metrics` | Prometheus-format metrics: request counts, latency histograms, active requests, model usage. Scraped by Prometheus. | None | ✅ Epic 6 |
 
 **Added in Rev 2 (not in original spec):**
 
@@ -181,6 +183,8 @@ User management, API keys, configuration, and audit trail.
 | PUT | `/vault/admin/config/network` | Update network config. | Admin | ✅ Rev 2 |
 | GET | `/vault/admin/config/tls` | TLS certificate info: issuer, expiry, type (self-signed/custom). | Admin | ✅ Epic 8 |
 | POST | `/vault/admin/config/tls` | Upload custom TLS certificate and private key. | Admin | ✅ Epic 8 |
+| GET | `/vault/admin/config/models` | Default model settings: default chat model, default embedding model. | Admin | |
+| PUT | `/vault/admin/config/models` | Update default model selections. New conversations auto-select the default chat model. | Admin | |
 
 **Added in Rev 2 (not in original spec):**
 
@@ -188,6 +192,13 @@ User management, API keys, configuration, and audit trail.
 |--------|----------|-------------|------|--------|
 | GET | `/vault/admin/config/system` | System settings (timezone, language, auto-update, session timeout). | Admin | ✅ Rev 2 |
 | PUT | `/vault/admin/config/system` | Update system settings. | Admin | ✅ Rev 2 |
+
+### 6.5 Data Management
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/vault/admin/data/export` | Export all user data (conversations, settings, API key metadata) as JSON or ZIP archive. | Admin |
+| POST | `/vault/admin/data/purge` | Delete all user data (conversations, messages, keys). Requires confirmation token. Logged to audit. | Admin |
 
 ### Notes
 
@@ -197,7 +208,9 @@ User management, API keys, configuration, and audit trail.
 
 ---
 
-## 7. Updates & Maintenance
+## 7. Updates, Backup & Maintenance
+
+### 7.1 Updates
 
 Air-gapped update lifecycle.
 
@@ -218,6 +231,39 @@ Air-gapped update lifecycle.
 - Rollback retains the previous container images and config. One version back only for MVP.
 - Update can include: new container images, new/updated models, OS security patches, API gateway code, dashboard code.
 
+### 7.2 Backup & Restore
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/vault/admin/backup` | Initiate encrypted backup to USB/mounted drive. Returns job ID. Includes conversations, API keys, audit logs, adapters, configs. | Admin |
+| GET | `/vault/admin/backup/progress/{job_id}` | Backup progress: percent complete, current step, estimated time remaining. | Admin |
+| POST | `/vault/admin/restore` | Restore from encrypted backup file. Accepts path to backup archive. Returns job ID. | Admin |
+| GET | `/vault/admin/restore/progress/{job_id}` | Restore progress and status. | Admin |
+| GET | `/vault/admin/backup/history` | List previous backups: date, size, location, contents summary. | Admin |
+
+### 7.3 Support & Diagnostics
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/vault/admin/support-bundle` | Generate support bundle: logs, hardware info, system state, config (secrets redacted). Returns download path. | Admin |
+| POST | `/vault/admin/factory-reset` | Factory reset to golden image state. Requires confirmation token. Preserves hardware config. Irreversible. | Admin |
+
+### 7.4 Conversation Archiving
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/vault/admin/config/archiving` | Get archiving settings: auto-archive threshold (days), archive storage path. | Admin |
+| PUT | `/vault/admin/config/archiving` | Update archiving settings. | Admin |
+| POST | `/vault/conversations/{id}/archive` | Manually archive a conversation to cold storage. | User |
+| POST | `/vault/conversations/{id}/unarchive` | Restore an archived conversation to active list. | User |
+| GET | `/vault/conversations/archived` | List archived conversations. Paginated. | User |
+
+### Notes (7.2–7.4)
+
+- Backup/restore are long-running — same job-progress pattern as updates.
+- Factory reset uses a confirmation token (admin must call GET first to receive token, then POST with token) to prevent accidental triggers.
+- Support bundle redacts secrets (API keys, TLS private keys, DB contents) automatically.
+
 ---
 
 ## 8. First-Boot / Onboarding
@@ -233,6 +279,7 @@ Used only during initial setup. These endpoints are unauthenticated (protected b
 | POST | `/vault/setup/model` | Select default model from pre-loaded options. Triggers model loading. | None* | ✅ |
 | GET | `/vault/setup/verify` | Run system verification: GPU check, inference test, service health. Returns results. | None* | ✅ |
 | POST | `/vault/setup/complete` | Finalize setup. Locks setup endpoints permanently. Starts all services in production mode. | None* | ✅ |
+| POST | `/vault/setup/sso` | Configure LDAP/SSO connection (optional step). Test connection before saving. | None* | |
 
 *\*None = unauthenticated, but only accessible before setup is marked complete. After setup, these return 404.*
 
@@ -254,6 +301,7 @@ For real-time features in the dashboard.
 | `ws://vault-cube.local/api/ws/system` | Live system metrics push: GPU util, temps, request rate. Dashboard subscribes on load. | User | ✅ Epic 8 |
 | `ws://vault-cube.local/api/ws/logs` | Live log stream for admin console. | Admin | |
 | `ws://vault-cube.local/api/ws/updates` | Update progress stream during update apply. | Admin | |
+| `ws://vault-cube.local/api/ws/python` | Interactive Python REPL session. Pre-loaded with model access libraries. | Admin | |
 
 ---
 
@@ -357,6 +405,9 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 | GET | `/vault/admin/devmode/status` | State: enabled/disabled, GPU allocation map, active sessions, resource usage. | Admin |
 | POST | `/vault/admin/devmode/jupyter` | Launch JupyterHub container on allocated GPU(s). Returns URL and access token. | Admin |
 | DELETE | `/vault/admin/devmode/jupyter` | Shut down JupyterHub container. | Admin |
+| GET | `/vault/admin/devmode/model/{model_id}/inspect` | Model architecture details: layer count, parameter count, attention heads, context window, quantization info (method, bits, group size). | Admin |
+| POST | `/vault/admin/devmode/python` | Launch Python console (IPython kernel). Returns WebSocket URL and session token. | Admin |
+| DELETE | `/vault/admin/devmode/python` | Shut down Python console session. | Admin |
 
 ### Notes
 
@@ -371,24 +422,24 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 | Domain | Endpoints | Built | Phase | Status |
 |--------|-----------|-------|-------|--------|
 | Inference (Industry-Standard API) | 5 | 5 | MVP | ✅ Rev 1 + Epic 8 (chat, completions, embeddings, models, model detail) |
-| System Health & Monitoring | 8 | 8 | MVP | ✅ Rev 1+2 + Epic 8 (health, gpu, resources, inference, services, restart, logs, insights, activity) |
-| Conversations & History | 7 | 7 | MVP | ✅ Rev 2 + Epic 8 (CRUD + export) |
-| Administration (Keys, Audit, Config) | 14 | 14 | MVP | ✅ Rev 2 + Epic 8 (keys 4/4, config 6/6, audit 3/3) |
+| System Health & Monitoring | 9 | 9 | MVP | ✅ Rev 1+2 + Epic 8 + Epic 6 (health, gpu, resources, inference, services, restart, logs, /metrics, insights, activity) |
+| Conversations & History | 10 | 7 | MVP | ✅ Rev 2 + Epic 8 (CRUD + export). Planned: archive, unarchive, archived list |
+| Administration (Keys, Audit, Config, Data) | 18 | 14 | MVP | ✅ Rev 2 + Epic 8 (keys 4/4, config 8/6, audit 3/3, data 2/0) |
 | User Management | 4 | 4 | Phase 2 | ✅ Rev 2 (pulled forward) |
 | Training & Fine-Tuning | 12 | 7 | Phase 2 | ✅ Rev 2 partial (jobs done, adapters later) |
 | Model Management | 7 | 7 | MVP | ✅ Epic 8 |
-| Updates & Maintenance | 7 | 0 | MVP | |
-| First-Boot / Onboarding | 7 | 7 | MVP | ✅ |
-| WebSockets | 4 | 1 | MVP / Phase 2 | ✅ Epic 8 partial (/ws/system) |
+| Updates, Backup & Maintenance | 16 | 0 | MVP | Updates 7, backup/restore 5, support/diagnostics 2, archiving config 2 |
+| First-Boot / Onboarding | 8 | 7 | MVP | ✅ (+ SSO step planned) |
+| WebSockets | 5 | 1 | MVP / Phase 2 | ✅ Epic 8 partial (/ws/system). Planned: Python REPL |
 | Quarantine & Data Security | 9 | 9 | MVP* | ✅ Epic 9 (3-stage pipeline: integrity, malware, sanitization) |
 | Documents & RAG | 8 | 0 | Phase 2 | |
 | Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
-| Developer Mode | 5 | 0 | Phase 3 | |
-| **Total** | **102** | **72** | | |
+| Developer Mode | 8 | 0 | Phase 3 | + model inspect, Python console launch/stop |
+| **Total** | **124** | **72** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*
 
-**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → +1 key update (140 tests) → +24 Epic 8 (234 tests) → +1 metrics (239 tests) → +9 quarantine (310 tests) → MVP remaining: updates**
+**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → +1 key update (140 tests) → +24 Epic 8 (234 tests) → +1 metrics (239 tests) → +9 quarantine (310 tests) → Total spec: 124 endpoints (72 built, 52 planned across Stages 2–6)**
 
 ---
 

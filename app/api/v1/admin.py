@@ -9,6 +9,8 @@ from app.schemas.admin import (
     KeyCreateResponse,
     KeyResponse,
     KeyUpdate,
+    ModelConfigResponse,
+    ModelConfigUpdate,
     NetworkConfigResponse,
     NetworkConfigUpdate,
     SystemSettingsResponse,
@@ -194,6 +196,24 @@ async def update_system_settings(body: SystemSettingsUpdate) -> SystemSettingsRe
     updates = body.model_dump(exclude_none=True)
     settings = await service.update_system_settings(**updates)
     return SystemSettingsResponse(**settings)
+
+
+# ── Model Config ──────────────────────────────────────────────────────────
+
+
+@router.get("/vault/admin/config/models")
+async def get_model_config() -> ModelConfigResponse:
+    service = AdminService()
+    config = await service.get_model_config()
+    return ModelConfigResponse(**config)
+
+
+@router.put("/vault/admin/config/models")
+async def update_model_config(body: ModelConfigUpdate) -> ModelConfigResponse:
+    service = AdminService()
+    updates = body.model_dump(exclude_none=True)
+    config = await service.update_model_config(**updates)
+    return ModelConfigResponse(**config)
 
 
 # ── Full Config ────────────────────────────────────────────────────────────

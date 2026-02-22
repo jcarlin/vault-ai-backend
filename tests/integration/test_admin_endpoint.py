@@ -281,6 +281,45 @@ class TestConfigEndpoints:
         assert get_resp.json()["diagnostics_enabled"] is False
 
 
+class TestModelConfigEndpoints:
+    async def test_get_model_config(self, auth_client):
+        """GET /vault/admin/config/models returns model defaults."""
+        response = await auth_client.get("/vault/admin/config/models")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_model_id"] == ""
+        assert data["default_temperature"] == 0.7
+        assert data["default_max_tokens"] == 4096
+        assert data["default_system_prompt"] == ""
+
+    async def test_update_model_config(self, auth_client):
+        """PUT /vault/admin/config/models updates and returns config."""
+        response = await auth_client.put(
+            "/vault/admin/config/models",
+            json={
+                "default_model_id": "qwen2.5-32b-awq",
+                "default_temperature": 0.3,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_model_id"] == "qwen2.5-32b-awq"
+        assert data["default_temperature"] == 0.3
+        # Unchanged fields keep defaults
+        assert data["default_max_tokens"] == 4096
+        assert data["default_system_prompt"] == ""
+
+    async def test_update_model_config_persists(self, auth_client):
+        """Model config changes persist across requests."""
+        await auth_client.put(
+            "/vault/admin/config/models",
+            json={"default_system_prompt": "You are a helpful assistant."},
+        )
+        get_resp = await auth_client.get("/vault/admin/config/models")
+        assert get_resp.status_code == 200
+        assert get_resp.json()["default_system_prompt"] == "You are a helpful assistant."
+
+
 class TestAdminAuth:
     async def test_401_without_auth(self, anon_client):
         """Admin endpoints require authentication."""

@@ -30,6 +30,13 @@ SYSTEM_DEFAULTS = {
     "system.diagnostics_enabled": "true",
 }
 
+MODEL_DEFAULTS = {
+    "models.default_model_id": "",
+    "models.default_temperature": "0.7",
+    "models.default_max_tokens": "4096",
+    "models.default_system_prompt": "",
+}
+
 QUARANTINE_DEFAULTS = {
     "quarantine.max_file_size": "1073741824",
     "quarantine.max_batch_files": "100",
@@ -266,6 +273,46 @@ class AdminService:
             await session.commit()
 
         return await self.get_system_settings()
+
+    # ── Model Config ─────────────────────────────────────────────────────
+
+    async def get_model_config(self) -> dict:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(SystemConfig).where(SystemConfig.key.startswith("models."))
+            )
+            rows = {r.key: r.value for r in result.scalars().all()}
+
+        if not rows:
+            await self._populate_defaults(MODEL_DEFAULTS)
+            rows = dict(MODEL_DEFAULTS)
+
+        return {
+            "default_model_id": rows.get("models.default_model_id", ""),
+            "default_temperature": float(rows.get("models.default_temperature", "0.7")),
+            "default_max_tokens": int(rows.get("models.default_max_tokens", "4096")),
+            "default_system_prompt": rows.get("models.default_system_prompt", ""),
+        }
+
+    async def update_model_config(self, **updates) -> dict:
+        async with self._session_factory() as session:
+            for field, value in updates.items():
+                if value is None:
+                    continue
+                key = f"models.{field}"
+                stored_value = str(value)
+
+                existing = await session.execute(
+                    select(SystemConfig).where(SystemConfig.key == key)
+                )
+                row = existing.scalar_one_or_none()
+                if row:
+                    row.value = stored_value
+                else:
+                    session.add(SystemConfig(key=key, value=stored_value))
+            await session.commit()
+
+        return await self.get_model_config()
 
     # ── Full Config ──────────────────────────────────────────────────────
 

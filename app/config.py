@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     vault_http_connect_timeout: float = 5.0
     vault_http_read_timeout: float = 120.0
 
+    # Backup/restore
+    vault_backup_dir: str = "/opt/vault/backups"
+
     # Quarantine pipeline
     vault_quarantine_dir: str = "/opt/vault/quarantine"
     vault_clamav_socket: str = "/var/run/clamav/clamd.ctl"

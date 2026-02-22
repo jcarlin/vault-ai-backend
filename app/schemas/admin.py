@@ -103,6 +103,20 @@ class TlsUploadRequest(BaseModel):
     private_key: str
 
 
+class ModelConfigResponse(BaseModel):
+    default_model_id: str
+    default_temperature: float
+    default_max_tokens: int
+    default_system_prompt: str
+
+
+class ModelConfigUpdate(BaseModel):
+    default_model_id: str | None = None
+    default_temperature: float | None = None
+    default_max_tokens: int | None = None
+    default_system_prompt: str | None = None
+
+
 class FullConfigResponse(BaseModel):
     network: NetworkConfigResponse
     system: SystemSettingsResponse

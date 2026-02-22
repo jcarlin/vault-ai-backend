@@ -12,7 +12,7 @@
 
 ## Current Scope: Epic 9 (Stage 3) — COMPLETE
 
-**73 API endpoints + auth middleware + audit logging + CLI + Docker + 310 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**75 API endpoints + auth middleware + audit logging + CLI + Docker + 313 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
 - **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
@@ -76,6 +76,8 @@ GET    /vault/admin/config/network       → Get network config
 PUT    /vault/admin/config/network       → Update network config
 GET    /vault/admin/config/system        → Get system settings
 PUT    /vault/admin/config/system        → Update system settings
+GET    /vault/admin/config/models        → Get model defaults (default model, temperature, max tokens, system prompt)
+PUT    /vault/admin/config/models        → Update model defaults
 
 System & Analytics:
 GET    /vault/system/resources           → CPU, RAM, disk, network metrics (psutil)
