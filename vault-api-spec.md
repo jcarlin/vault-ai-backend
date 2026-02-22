@@ -380,15 +380,15 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 | Updates & Maintenance | 7 | 0 | MVP | |
 | First-Boot / Onboarding | 7 | 7 | MVP | ✅ |
 | WebSockets | 4 | 1 | MVP / Phase 2 | ✅ Epic 8 partial (/ws/system) |
-| Quarantine & Data Security | 9 | 0 | MVP* | |
+| Quarantine & Data Security | 9 | 9 | MVP* | ✅ Epic 9 (3-stage pipeline: integrity, malware, sanitization) |
 | Documents & RAG | 8 | 0 | Phase 2 | |
 | Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
 | Developer Mode | 5 | 0 | Phase 3 | |
-| **Total** | **102** | **63** | | |
+| **Total** | **102** | **72** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*
 
-**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → +1 key update (140 tests) → +24 Epic 8 (234 tests) → MVP remaining: updates + quarantine**
+**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → +1 key update (140 tests) → +24 Epic 8 (234 tests) → +1 metrics (239 tests) → +9 quarantine (310 tests) → MVP remaining: updates**
 
 ---
 

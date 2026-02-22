@@ -30,6 +30,15 @@ SYSTEM_DEFAULTS = {
     "system.diagnostics_enabled": "true",
 }
 
+QUARANTINE_DEFAULTS = {
+    "quarantine.max_file_size": "1073741824",
+    "quarantine.max_batch_files": "100",
+    "quarantine.max_compression_ratio": "100",
+    "quarantine.max_archive_depth": "3",
+    "quarantine.auto_approve_clean": "true",
+    "quarantine.strictness_level": "standard",
+}
+
 
 class AdminService:
     def __init__(self, session_factory=None):

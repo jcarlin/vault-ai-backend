@@ -146,6 +146,55 @@ class SystemConfig(Base):
     )
 
 
+# ── Epic 9: Quarantine ──────────────────────────────────────────────────────
+
+
+class QuarantineJob(Base):
+    __tablename__ = "quarantine_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/scanning/completed/failed
+    total_files: Mapped[int] = mapped_column(Integer, default=0)
+    files_completed: Mapped[int] = mapped_column(Integer, default=0)
+    files_flagged: Mapped[int] = mapped_column(Integer, default=0)
+    files_clean: Mapped[int] = mapped_column(Integer, default=0)
+    source_type: Mapped[str] = mapped_column(String(20), default="upload")  # upload/usb_path/model_import
+    submitted_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class QuarantineFile(Base):
+    __tablename__ = "quarantine_files"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("quarantine_jobs.id"), index=True
+    )
+    original_filename: Mapped[str] = mapped_column(String(500))
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sha256_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/scanning/clean/held/approved/rejected
+    current_stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    risk_severity: Mapped[str] = mapped_column(String(20), default="none")  # none/low/medium/high/critical
+    findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quarantine_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    sanitized_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    destination_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 # ── Engine & Session ──────────────────────────────────────────────────────────
 
 engine = create_async_engine(settings.vault_db_url, echo=False)

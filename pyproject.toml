@@ -17,6 +17,12 @@ dependencies = [
     "rich>=13.9.0",
     "psutil>=6.0.0",
     "asyncpg>=0.29.0",
+    "python-magic>=0.4.27",
+    "pikepdf>=9.0.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "Pillow>=10.0.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.scripts]

@@ -10,9 +10,9 @@
 | `PRD.md` | Full backend design: DB schema, training architecture, system design | Planning features beyond Rev 2 |
 | `../vault-ai-frontend/CLAUDE.md` | Frontend components, API integration, pages, design tokens | Understanding how the frontend consumes this API |
 
-## Current Scope: Epic 8 (Stage 3) — COMPLETE
+## Current Scope: Epic 9 (Stage 3) — COMPLETE
 
-**64 API endpoints + auth middleware + audit logging + CLI + Docker + 239 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**73 API endpoints + auth middleware + audit logging + CLI + Docker + 310 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
 - **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
@@ -20,6 +20,7 @@
 - **First-boot wizard (7 endpoints):** Setup status, network config, admin account + API key creation, TLS cert, model selection, system verification, setup completion with lockout
 - **Epic 8 (24 new endpoints):** Full API gateway — audit log query/export/stats, full config GET/PUT, TLS GET/POST, text completions, embeddings, model detail, conversation export, expanded health, inference stats, services list/restart, logs, model management (list/detail/load/unload/active/import/delete), WebSocket live metrics
 - **Epic 6 (1 new endpoint):** Prometheus /metrics endpoint exposing request counts, latency histograms, active requests, and model usage in Prometheus text format
+- **Epic 9 (9 new endpoints):** Quarantine pipeline — 3-stage security scanning (file integrity, malware scan, content sanitization), async pipeline orchestrator, held file approve/reject workflow, signature management, quarantine config
 - API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
 - Admin scope enforcement on all `/vault/admin/*` and admin-only model management endpoints
 - Request logging middleware (structured JSON via structlog + AuditLog table)
@@ -27,15 +28,13 @@
 - `vault-admin` CLI (create-key, list-keys, revoke-key)
 - Mock vLLM server for local dev without GPU (chat, completions, embeddings, models)
 - Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
-- 239 tests (unit + integration), all passing
+- 310 tests (unit + integration), all passing
 - Frontend (vault-ai-frontend) wired to all 31 Rev 1+2 endpoints — chat streaming, conversations, admin, settings, insights all using real API calls
 
 ### What's next
-- Deploy on the Cube — GPU stack validated (vLLM via NGC container, CUDA 12.8, Driver 570) — swap mock for real vLLM
+- Deploy on the Cube — run `app.yml` playbook to deploy backend as systemd service, then swap mock for real vLLM
 - End-to-end testing with real hardware
-- Wire frontend to Epic 8 endpoints (model management UI, audit log viewer, expanded system health)
-- Then: monitoring setup (Grafana/Cockpit), pilot deployment
-- Stage 3 remaining: quarantine pipeline (Epic 9), update mechanism (Epic 10), support/diagnostics (Epic 11)
+- Stage 3 remaining: update mechanism (Epic 10), support/diagnostics (Epic 11)
 
 ### Rev 1 Endpoints
 
@@ -125,6 +124,26 @@ WebSocket:
 WS     /ws/system                       → Live system metrics push every 2s (token auth via query param)
 ```
 
+### Epic 9 Endpoints (Quarantine Pipeline)
+
+```
+Scanning:
+POST   /vault/quarantine/scan                → Submit files for quarantine scanning (multipart upload)
+GET    /vault/quarantine/scan/{job_id}       → Scan progress and per-file status/findings
+
+Held Files:
+GET    /vault/quarantine/held                → List flagged files awaiting review (admin)
+GET    /vault/quarantine/held/{id}           → Held file details + findings (admin)
+POST   /vault/quarantine/held/{id}/approve   → Override approve with reason (admin, audit logged)
+POST   /vault/quarantine/held/{id}/reject    → Reject and delete with reason (admin, audit logged)
+
+Management:
+GET    /vault/quarantine/signatures          → ClamAV/YARA signature versions + freshness (admin)
+GET    /vault/quarantine/stats               → Aggregate scan statistics (admin)
+GET    /vault/admin/config/quarantine        → Get quarantine config (admin)
+PUT    /vault/admin/config/quarantine        → Update quarantine config (admin)
+```
+
 ### First-Boot Wizard Endpoints
 
 ```
@@ -153,7 +172,7 @@ vault-admin revoke-key vault_sk_abc123...                    # Revoke key
 
 These are all real features in the roadmap but they ship in later stages:
 - Real training execution (current: job records only, Axolotl/LoRA in Stage 5)
-- File upload quarantine pipeline (Stage 3)
+- AI-specific quarantine Stage 4 checks (PII scanning, prompt injection detection — Epic 13, Stage 4)
 - JWT auth / LDAP/SSO (Stage 3-4, current uses API keys)
 - GPU allocation API (Stage 5)
 - PostgreSQL (current uses SQLite)
@@ -191,13 +210,32 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   -d '{"model": "qwen2.5-32b-awq", "messages": [{"role": "user", "content": "Hello"}], "stream": true}'
 ```
 
-### Running on the Cube (With GPU)
+### Running on the Cube (Production)
+
+The backend runs as a systemd service, deployed by the `vault-backend` Ansible role (`vault-ai-os/ansible/roles/vault-backend/`).
 
 ```bash
-# vLLM is already running as a Docker container on the Cube
-# Just point the gateway at it
-VLLM_BASE_URL=http://localhost:8001 uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Deployed by Ansible — service management:
+systemctl status vault-backend
+systemctl restart vault-backend
+journalctl -u vault-backend -f
+
+# Manual run (if needed):
+/opt/vault/backend-venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+**Key paths on the Cube:**
+- App code: `/opt/vault/backend/`
+- Python venv: `/opt/vault/backend-venv/` (separate from PyTorch's `/opt/vault/venv`)
+- Database: `/opt/vault/data/vault.db`
+- Config: `/opt/vault/config/vault-backend.env`
+- Logs: `journalctl -u vault-backend` or `/var/log/vault/`
+- TLS certs: `/opt/vault/tls/`
+- Models: `/opt/vault/models/`
+
+**Environment variables** are set in `/opt/vault/config/vault-backend.env` (deployed by Ansible, sourced by systemd `EnvironmentFile`).
+
+**Caddy reverse proxy** handles TLS termination on :443. Routes `/v1/*`, `/vault/*`, `/ws/*`, `/metrics` to backend (:8000), everything else to frontend (:3001).
 
 ### Running Tests
 
@@ -235,6 +273,7 @@ vault-ai-backend/
 │   │       ├── insights.py     # Usage analytics from audit log
 │   │       ├── activity.py     # Recent activity feed
 │   │       ├── model_management.py # /vault/models/* — load, unload, import, delete
+│   │       ├── quarantine.py   # /vault/quarantine/* — scan, held, approve/reject, signatures, stats
 │   │       ├── websocket.py    # WS /ws/system — live metrics push
 │   │       └── setup.py        # First-boot wizard (7 endpoints)
 │   │
@@ -244,6 +283,19 @@ vault-ai-backend/
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py         # Abstract InferenceBackend interface
 │   │   │   └── vllm_client.py  # httpx async client to vLLM
+│   │   ├── quarantine/
+│   │   │   ├── __init__.py     # Exports QuarantinePipeline
+│   │   │   ├── orchestrator.py # Pipeline coordinator, job management, approve/reject
+│   │   │   ├── directory.py    # Quarantine filesystem layout manager
+│   │   │   ├── clamav.py       # ClamAV Unix socket client
+│   │   │   ├── yara_engine.py  # YARA rule loader (yara-x + yara-python fallback)
+│   │   │   ├── hash_blacklist.py # SHA-256 known-bad file DB
+│   │   │   ├── signatures.py   # Signature updates from USB bundles
+│   │   │   └── stages/
+│   │   │       ├── __init__.py      # PipelineStage ABC, StageFinding, StageResult
+│   │   │       ├── file_integrity.py # Stage 1: MIME, format validation, archive bombs
+│   │   │       ├── malware_scan.py   # Stage 2: ClamAV, YARA, hash blacklist
+│   │   │       └── sanitization.py   # Stage 3: PDF/Office/image cleaning
 │   │   ├── auth.py             # API key validation
 │   │   ├── monitoring.py       # GPU metrics (py3nvml)
 │   │   ├── conversations.py    # Conversation + message business logic + export
@@ -269,6 +321,7 @@ vault-ai-backend/
 │   │   ├── system.py           # SystemResources, GpuDetail
 │   │   ├── services.py         # ServiceStatus, LogEntry, InferenceStatsResponse
 │   │   ├── model_management.py # VaultModelInfo, ModelLoadResponse, ModelImportRequest
+│   │   ├── quarantine.py       # ScanSubmitResponse, ScanStatusResponse, HeldFileResponse, etc.
 │   │   ├── insights.py         # InsightsResponse, UsageDataPoint, ModelUsageStats
 │   │   ├── activity.py         # ActivityItem, ActivityFeed
 │   │   └── setup.py            # Setup wizard request/response models
@@ -278,7 +331,7 @@ vault-ai-backend/
 │   │   ├── security.py         # API key hashing, validation
 │   │   ├── exceptions.py       # Custom exception classes
 │   │   ├── middleware.py        # Auth middleware, request logging + AuditLog, CORS
-│   │   └── database.py         # SQLite + SQLAlchemy async: ApiKey, User, Conversation, Message, TrainingJob, AuditLog, SystemConfig
+│   │   └── database.py         # SQLite + SQLAlchemy async: ApiKey, User, Conversation, Message, TrainingJob, AuditLog, SystemConfig, QuarantineJob, QuarantineFile
 │   │
 │   └── cli.py                  # vault-admin CLI tool (click or typer)
 │
@@ -286,14 +339,20 @@ vault-ai-backend/
 │   ├── conftest.py             # Fixtures: test client, mock vLLM, test DB
 │   ├── mocks/
 │   │   ├── fake_vllm.py        # Lightweight FastAPI app mimicking vLLM
-│   │   └── fake_docker.py      # Mock Docker client for model management tests
+│   │   ├── fake_docker.py      # Mock Docker client for model management tests
+│   │   └── fake_clamav.py      # Mock ClamAV client (detects EICAR test string)
+│   ├── fixtures/quarantine/    # Test files (clean.pdf, eicar.txt, archive_bomb.zip, etc.)
 │   ├── unit/
 │   │   ├── test_auth.py
 │   │   ├── test_schemas.py
 │   │   ├── test_security.py
 │   │   ├── test_exceptions.py
 │   │   ├── test_inference_client.py
-│   │   └── test_model_manager.py
+│   │   ├── test_model_manager.py
+│   │   ├── test_file_integrity.py       # Stage 1 unit tests (14 tests)
+│   │   ├── test_malware_scan.py         # Stage 2 unit tests (12 tests)
+│   │   ├── test_sanitization.py         # Stage 3 unit tests (8 tests)
+│   │   └── test_quarantine_orchestrator.py # Pipeline orchestrator tests (13 tests)
 │   └── integration/
 │       ├── test_chat_endpoint.py
 │       ├── test_models_endpoint.py
@@ -309,7 +368,8 @@ vault-ai-backend/
 │       ├── test_model_management_endpoint.py
 │       ├── test_websocket_endpoint.py
 │       ├── test_insights_endpoint.py
-│       └── test_setup_endpoint.py
+│       ├── test_setup_endpoint.py
+│       └── test_quarantine_endpoint.py  # Full pipeline integration tests (24 tests)
 │
 ├── config/
 │   ├── models.json             # Model manifest (installed models + metadata)
@@ -485,15 +545,20 @@ class MockBackend(InferenceBackend):
 ```bash
 # Required
 VLLM_BASE_URL=http://localhost:8001     # vLLM server URL
-VAULT_SECRET_KEY=<random-64-chars>      # For API key hashing
+VAULT_SECRET_KEY=<random-64-chars>      # For API key hashing (auto-generated by Ansible if not set)
 
 # Optional
-VAULT_DB_URL=sqlite+aiosqlite:///data/vault.db   # Database URL
+VAULT_DB_URL=sqlite+aiosqlite:///opt/vault/data/vault.db   # Database URL
 VAULT_LOG_LEVEL=info                              # Logging level
 VAULT_MODELS_MANIFEST=/opt/vault/config/models.json  # Model manifest path
 VAULT_CORS_ORIGINS=https://vault-cube.local       # Allowed CORS origins
 VAULT_SETUP_FLAG_PATH=/opt/vault/data/.setup_complete  # Setup wizard completion flag
-VAULT_TLS_CERT_DIR=/opt/vault/tls                      # TLS certificate directory
+VAULT_TLS_CERT_DIR=/opt/vault/tls                 # TLS certificate directory
+VAULT_DEPLOYMENT_MODE=cube                        # "cube" or "cloud"
+VAULT_MODELS_DIR=/opt/vault/models                # Model files directory
+VAULT_GPU_CONFIG_PATH=/opt/vault/config/gpu-config.yaml  # GPU allocation config
+VAULT_VLLM_CONTAINER_NAME=vault-vllm              # Docker container name for vLLM
+VAULT_QUARANTINE_DIR=/opt/vault/quarantine         # Quarantine pipeline directory
 ```
 
 ---
@@ -543,7 +608,7 @@ Models are managed via a JSON file, not an API. Admin edits the file and restart
 
 See `vault-api-spec.md` for the full API endpoint specification, `PRD.md` for backend design, and `../ROADMAP.md` for staging. The next backend milestones are:
 
-- **Stage 3 remaining:** Quarantine pipeline (Epic 9), update mechanism (Epic 10), support/diagnostics tooling (Epic 11)
+- **Stage 3 remaining:** Update mechanism (Epic 10), support/diagnostics tooling (Epic 11)
 - **Stage 4:** Documents & RAG, PII scanning, LDAP integration
 - **Stage 5:** Training job API (Axolotl), LoRA adapter management, eval
 - **Stage 6:** Developer mode, JupyterHub, multi-model serving

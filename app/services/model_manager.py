@@ -138,7 +138,7 @@ class ModelManager:
 
         return {"models": models, "gpu_allocation": gpu_allocation}
 
-    async def import_model(self, source_path: str, model_id: str | None = None) -> dict:
+    async def import_model(self, source_path: str, model_id: str | None = None, quarantine_pipeline=None) -> dict:
         source = Path(source_path)
         if not source.exists():
             raise NotFoundError(f"Source path '{source_path}' not found.")
@@ -171,6 +171,18 @@ class ModelManager:
         dest = self._models_dir / model_id
         if dest.exists():
             raise VaultError(code="conflict", message=f"Model '{model_id}' already exists.", status=409)
+
+        # Route through quarantine pipeline if available
+        if quarantine_pipeline:
+            files_to_scan = []
+            for f in source.rglob("*"):
+                if f.is_file():
+                    files_to_scan.append((str(f.relative_to(source)), f.read_bytes()))
+            if files_to_scan:
+                job_id = await quarantine_pipeline.submit_scan(
+                    files_to_scan, source_type="model_import", submitted_by="model_manager"
+                )
+                logger.info("model_import_quarantine_submitted", model_id=model_id, job_id=job_id)
 
         # Copy (potentially multi-GB, so use thread)
         await asyncio.to_thread(shutil.copytree, source, dest)
