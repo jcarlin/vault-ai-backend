@@ -13,6 +13,11 @@ from app.api.v1.setup import router as setup_router
 from app.api.v1.system import router as system_router
 from app.api.v1.training import router as training_router
 
+# Epic 8
+from app.api.v1.audit import router as audit_router
+from app.api.v1.model_management import router as model_management_router
+from app.api.v1.websocket import router as websocket_router
+
 v1_router = APIRouter()
 
 # Rev 1
@@ -28,5 +33,12 @@ v1_router.include_router(system_router, tags=["System"])
 v1_router.include_router(insights_router, tags=["Insights"])
 v1_router.include_router(activity_router, tags=["Activity"])
 
+# Epic 8
+v1_router.include_router(audit_router, tags=["Audit"])
+v1_router.include_router(model_management_router, tags=["Model Management"])
+
 # Setup wizard
 v1_router.include_router(setup_router, tags=["Setup"])
+
+# WebSocket
+v1_router.include_router(websocket_router, tags=["WebSocket"])

@@ -86,3 +86,25 @@ class TestModelsEndpoint:
         assert len(models) == 2
         assert models[0]["type"] == "chat"
         assert models[1]["type"] == "embedding"
+
+
+class TestGetModel:
+    async def test_get_existing_model(self, auth_client):
+        """GET /v1/models/{model_id} returns model details."""
+        response = await auth_client.get("/v1/models/qwen2.5-32b-awq:latest")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "qwen2.5-32b-awq:latest"
+        assert data["name"] is not None
+
+    async def test_get_nonexistent_model(self, auth_client):
+        """GET /v1/models/{model_id} returns 404 for unknown model."""
+        response = await auth_client.get("/v1/models/nonexistent-model")
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+
+    async def test_get_model_401_without_auth(self, anon_client):
+        """GET /v1/models/{model_id} without auth returns 401."""
+        response = await anon_client.get("/v1/models/qwen2.5-32b-awq:latest")
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "authentication_required"

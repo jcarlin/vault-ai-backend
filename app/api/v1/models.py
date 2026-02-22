@@ -80,3 +80,46 @@ async def list_models(request: Request) -> ModelListResponse:
 
     models.sort(key=_model_sort_key)
     return ModelListResponse(data=models)
+
+
+@router.get("/v1/models/{model_id}")
+async def get_model(model_id: str, request: Request) -> ModelInfo:
+    """Get detailed info for a specific model."""
+    from app.core.exceptions import NotFoundError
+
+    backend = request.app.state.inference_backend
+    manifest = _load_manifest()
+
+    # Try live backend first
+    model = None
+    try:
+        model = await backend.get_model_details(model_id)
+        has_metadata = model.parameters or model.family or model.context_window
+        if has_metadata:
+            if manifest:
+                manifest_entry = next(
+                    (m for m in manifest if m["id"] == model_id or m["id"] == model_id.rsplit(":", 1)[0]),
+                    None,
+                )
+                if manifest_entry:
+                    model = _merge_with_manifest([model], [manifest_entry])[0]
+            return model
+    except Exception:
+        pass
+
+    # Fallback to manifest only
+    if manifest:
+        entry = next((m for m in manifest if m["id"] == model_id), None)
+        if entry:
+            return ModelInfo(**entry)
+
+    # If backend returned a bare model, check if it exists in the models list
+    if model is not None:
+        try:
+            all_models = await backend.list_models()
+            if any(m.id == model_id for m in all_models):
+                return model
+        except Exception:
+            pass
+
+    raise NotFoundError(f"Model '{model_id}' not found.")

@@ -88,3 +88,28 @@ class SystemSettingsUpdate(BaseModel):
     max_upload_size: int | None = None
     debug_logging: bool | None = None
     diagnostics_enabled: bool | None = None
+
+
+class TlsInfoResponse(BaseModel):
+    enabled: bool
+    self_signed: bool
+    issuer: str | None = None
+    expires: str | None = None
+    serial: str | None = None
+
+
+class TlsUploadRequest(BaseModel):
+    certificate: str
+    private_key: str
+
+
+class FullConfigResponse(BaseModel):
+    network: NetworkConfigResponse
+    system: SystemSettingsResponse
+    tls: TlsInfoResponse
+    restart_required: bool = False
+
+
+class FullConfigUpdate(BaseModel):
+    network: NetworkConfigUpdate | None = None
+    system: SystemSettingsUpdate | None = None

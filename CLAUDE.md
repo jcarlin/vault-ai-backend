@@ -10,29 +10,31 @@
 | `PRD.md` | Full backend design: DB schema, training architecture, system design | Planning features beyond Rev 2 |
 | `../vault-ai-frontend/CLAUDE.md` | Frontend components, API integration, pages, design tokens | Understanding how the frontend consumes this API |
 
-## Current Scope: Rev 2 (Stage 2) — COMPLETE
+## Current Scope: Epic 8 (Stage 3) — COMPLETE
 
-**38 API endpoints + auth middleware + audit logging + CLI + Docker + 117 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**63 API endpoints + auth middleware + audit logging + CLI + Docker + 234 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
 - **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
 - **Rev 2 (28 new endpoints):** Conversations CRUD, training jobs lifecycle, admin/users/keys/config, system metrics, insights analytics, activity feed
 - **First-boot wizard (7 endpoints):** Setup status, network config, admin account + API key creation, TLS cert, model selection, system verification, setup completion with lockout
+- **Epic 8 (24 new endpoints):** Full API gateway — audit log query/export/stats, full config GET/PUT, TLS GET/POST, text completions, embeddings, model detail, conversation export, expanded health, inference stats, services list/restart, logs, model management (list/detail/load/unload/active/import/delete), WebSocket live metrics
 - API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
+- Admin scope enforcement on all `/vault/admin/*` and admin-only model management endpoints
 - Request logging middleware (structured JSON via structlog + AuditLog table)
 - Setup wizard middleware (unauthenticated access when pending, 404 when complete)
 - `vault-admin` CLI (create-key, list-keys, revoke-key)
-- Mock vLLM server for local dev without GPU
+- Mock vLLM server for local dev without GPU (chat, completions, embeddings, models)
 - Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
-- 117 tests (unit + integration), all passing
+- 234 tests (unit + integration), all passing
 - Frontend (vault-ai-frontend) wired to all 31 Rev 1+2 endpoints — chat streaming, conversations, admin, settings, insights all using real API calls
 
 ### What's next
 - Deploy on the Cube — GPU stack validated (vLLM via NGC container, CUDA 12.8, Driver 570) — swap mock for real vLLM
 - End-to-end testing with real hardware
-- Enforce API key scopes (admin vs user — currently stored but not checked by endpoints)
-- Wire frontend to first-boot wizard endpoints (currently uses localStorage)
+- Wire frontend to Epic 8 endpoints (model management UI, audit log viewer, expanded system health)
 - Then: monitoring setup (Grafana/Cockpit), pilot deployment
+- Stage 3 remaining: quarantine pipeline (Epic 9), update mechanism (Epic 10), support/diagnostics (Epic 11)
 
 ### Rev 1 Endpoints
 
@@ -82,6 +84,46 @@ GET    /vault/insights?range=7d          → Usage analytics from audit log
 GET    /vault/activity?limit=20          → Recent activity feed
 ```
 
+### Epic 8 Endpoints (Full API Gateway)
+
+```
+Inference:
+POST   /v1/completions                  → Text completion proxy to vLLM (streaming + non-streaming)
+POST   /v1/embeddings                   → Embedding generation proxy to vLLM
+GET    /v1/models/{model_id}            → Detailed single model info (manifest-enriched)
+
+Conversations:
+GET    /vault/conversations/{id}/export → Export conversation as JSON or Markdown
+
+Audit & Config:
+GET    /vault/admin/audit               → Query audit log with filters + pagination
+GET    /vault/admin/audit/export        → Export audit log as CSV or JSON
+GET    /vault/admin/audit/stats         → Aggregate stats (requests/user, tokens, model usage)
+GET    /vault/admin/config              → Full merged config (network + system + TLS)
+PUT    /vault/admin/config              → Update config with restart_required flag
+GET    /vault/admin/config/tls          → TLS certificate info
+POST   /vault/admin/config/tls         → Upload TLS cert + key (PEM validation)
+
+System Monitoring:
+GET    /vault/system/health             → Expanded health (all services + vLLM)
+GET    /vault/system/inference          → Inference stats (RPM, latency, TPS from AuditLog)
+GET    /vault/system/services           → List managed services (admin)
+POST   /vault/system/services/{name}/restart → Restart service (admin, allowlisted)
+GET    /vault/system/logs               → Paginated system logs (admin)
+
+Model Management:
+GET    /vault/models                    → List all models on disk with loaded/available status
+GET    /vault/models/{model_id}         → Detailed model info (disk + manifest + loaded)
+POST   /vault/models/{model_id}/load    → Load model → update gpu-config → restart vLLM (admin)
+POST   /vault/models/{model_id}/unload  → Unload model from GPU (admin)
+GET    /vault/models/active             → Currently loaded models + GPU allocation
+POST   /vault/models/import             → Import model from path with validation (admin)
+DELETE /vault/models/{model_id}         → Delete model from disk, refuses if loaded (admin)
+
+WebSocket:
+WS     /ws/system                       → Live system metrics push every 2s (token auth via query param)
+```
+
 ### First-Boot Wizard Endpoints
 
 ```
@@ -106,16 +148,17 @@ vault-admin list-keys                                        # List keys (prefix
 vault-admin revoke-key vault_sk_abc123...                    # Revoke key
 ```
 
-### What Is NOT Rev 2
+### What Is NOT Current Scope
 
 These are all real features in the roadmap but they ship in later stages:
-- Model load/unload via API (Rev 2: config file + service restart)
-- Real training execution (Rev 2: job records only, Axolotl/LoRA in Stage 5)
+- Real training execution (current: job records only, Axolotl/LoRA in Stage 5)
 - File upload quarantine pipeline (Stage 3)
-- JWT auth / LDAP/SSO (Stage 3-4, Rev 2 uses API keys)
+- JWT auth / LDAP/SSO (Stage 3-4, current uses API keys)
 - GPU allocation API (Stage 5)
-- PostgreSQL (Rev 2 uses SQLite)
-- Redis / Celery (Rev 2 uses async tasks)
+- PostgreSQL (current uses SQLite)
+- Redis / Celery (current uses async tasks)
+- Update mechanism (Stage 3)
+- Documents & RAG pipeline (Stage 4)
 
 ---
 
@@ -180,15 +223,18 @@ vault-ai-backend/
 │   │   └── v1/
 │   │       ├── __init__.py
 │   │       ├── router.py       # Main router aggregator
-│   │       ├── chat.py         # POST /v1/chat/completions
-│   │       ├── models.py       # GET /v1/models
+│   │       ├── chat.py         # POST /v1/chat/completions, /v1/completions, /v1/embeddings
+│   │       ├── models.py       # GET /v1/models, /v1/models/{model_id}
 │   │       ├── health.py       # GET /vault/health
-│   │       ├── conversations.py # Conversations CRUD + messages
+│   │       ├── conversations.py # Conversations CRUD + messages + export
 │   │       ├── training.py     # Training jobs CRUD + lifecycle
-│   │       ├── admin.py        # Users, API keys, config management
-│   │       ├── system.py       # System resources + GPU metrics
+│   │       ├── admin.py        # Users, API keys, config, TLS management
+│   │       ├── audit.py        # Audit log query, export (CSV/JSON), stats
+│   │       ├── system.py       # System resources, GPU, health, services, logs
 │   │       ├── insights.py     # Usage analytics from audit log
 │   │       ├── activity.py     # Recent activity feed
+│   │       ├── model_management.py # /vault/models/* — load, unload, import, delete
+│   │       ├── websocket.py    # WS /ws/system — live metrics push
 │   │       └── setup.py        # First-boot wizard (7 endpoints)
 │   │
 │   ├── services/
@@ -199,10 +245,13 @@ vault-ai-backend/
 │   │   │   └── vllm_client.py  # httpx async client to vLLM
 │   │   ├── auth.py             # API key validation
 │   │   ├── monitoring.py       # GPU metrics (py3nvml)
-│   │   ├── conversations.py    # Conversation + message business logic
+│   │   ├── conversations.py    # Conversation + message business logic + export
 │   │   ├── training.py         # Training job management + state machine
-│   │   ├── admin.py            # User/config management, wraps AuthService
+│   │   ├── admin.py            # User/config/TLS management, wraps AuthService
+│   │   ├── audit.py            # Audit log query, filtering, aggregation, CSV/JSON export
 │   │   ├── system.py           # CPU/RAM/disk metrics via psutil
+│   │   ├── service_manager.py  # Service status, restart, logs, inference stats
+│   │   ├── model_manager.py    # Model lifecycle: disk scan, vLLM orchestration, import, delete
 │   │   └── setup.py            # First-boot wizard logic, reuses AdminService
 │   │
 │   ├── schemas/                # Pydantic v2 request/response models
@@ -212,8 +261,13 @@ vault-ai-backend/
 │   │   ├── health.py           # HealthResponse
 │   │   ├── conversations.py    # ConversationCreate/Response, MessageCreate/Response
 │   │   ├── training.py         # TrainingJobCreate/Response, TrainingConfig/Metrics
-│   │   ├── admin.py            # UserCreate/Response, KeyCreate/Response, Config schemas
+│   │   ├── admin.py            # UserCreate/Response, KeyCreate/Response, Config, TLS schemas
+│   │   ├── audit.py            # AuditLogEntry, AuditLogResponse, AuditStatsResponse
+│   │   ├── completions.py      # CompletionRequest, CompletionResponse
+│   │   ├── embeddings.py       # EmbeddingRequest, EmbeddingResponse
 │   │   ├── system.py           # SystemResources, GpuDetail
+│   │   ├── services.py         # ServiceStatus, LogEntry, InferenceStatsResponse
+│   │   ├── model_management.py # VaultModelInfo, ModelLoadResponse, ModelImportRequest
 │   │   ├── insights.py         # InsightsResponse, UsageDataPoint, ModelUsageStats
 │   │   ├── activity.py         # ActivityItem, ActivityFeed
 │   │   └── setup.py            # Setup wizard request/response models
@@ -230,21 +284,29 @@ vault-ai-backend/
 ├── tests/
 │   ├── conftest.py             # Fixtures: test client, mock vLLM, test DB
 │   ├── mocks/
-│   │   └── fake_vllm.py        # Lightweight FastAPI app mimicking vLLM
+│   │   ├── fake_vllm.py        # Lightweight FastAPI app mimicking vLLM
+│   │   └── fake_docker.py      # Mock Docker client for model management tests
 │   ├── unit/
 │   │   ├── test_auth.py
 │   │   ├── test_schemas.py
 │   │   ├── test_security.py
 │   │   ├── test_exceptions.py
-│   │   └── test_inference_client.py
+│   │   ├── test_inference_client.py
+│   │   └── test_model_manager.py
 │   └── integration/
 │       ├── test_chat_endpoint.py
 │       ├── test_models_endpoint.py
 │       ├── test_health_endpoint.py
 │       ├── test_conversations_endpoint.py
+│       ├── test_completions_endpoint.py
+│       ├── test_embeddings_endpoint.py
 │       ├── test_training_endpoint.py
 │       ├── test_admin_endpoint.py
+│       ├── test_audit_endpoint.py
 │       ├── test_system_endpoint.py
+│       ├── test_system_monitoring_endpoint.py
+│       ├── test_model_management_endpoint.py
+│       ├── test_websocket_endpoint.py
 │       ├── test_insights_endpoint.py
 │       └── test_setup_endpoint.py
 │
@@ -476,11 +538,11 @@ Models are managed via a JSON file, not an API. Admin edits the file and restart
 
 ---
 
-## What Comes After Rev 1
+## What Comes Next
 
 See `vault-api-spec.md` for the full API endpoint specification, `PRD.md` for backend design, and `../ROADMAP.md` for staging. The next backend milestones are:
 
-- **Stage 3:** Expand to 57 endpoints — model management API, conversations API, admin/audit API, quarantine pipeline, update mechanism
+- **Stage 3 remaining:** Quarantine pipeline (Epic 9), update mechanism (Epic 10), support/diagnostics tooling (Epic 11)
 - **Stage 4:** Documents & RAG, PII scanning, LDAP integration
 - **Stage 5:** Training job API (Axolotl), LoRA adapter management, eval
 - **Stage 6:** Developer mode, JupyterHub, multi-model serving

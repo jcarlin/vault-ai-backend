@@ -1,8 +1,8 @@
 # Vault Cube — API Endpoint Specification
 
-**Version:** 0.5 (Admin scope enforcement + key update endpoint)
+**Version:** 0.6 (Epic 8 — Full API Gateway)
 **Date:** February 2026
-**Status:** 39 endpoints shipped (32 Rev 1+2 + 7 first-boot wizard), 140 tests. Admin scope enforcement active. See `CLAUDE.md` for current scope.
+**Status:** 63 endpoints shipped (32 Rev 1+2 + 7 first-boot wizard + 24 Epic 8), 234 tests. Admin scope enforcement active. See `CLAUDE.md` for current scope.
 
 ---
 
@@ -23,10 +23,10 @@ These endpoints follow the de facto industry-standard LLM API format (originated
 | Method | Endpoint | Description | Auth | Status |
 |--------|----------|-------------|------|--------|
 | POST | `/v1/chat/completions` | Chat completion (streaming + non-streaming). Proxied to vLLM. Core inference endpoint. | User | ✅ Rev 1 |
-| POST | `/v1/completions` | Legacy text completion. Proxied to vLLM. | User | |
-| POST | `/v1/embeddings` | Generate text embeddings (if embedding model loaded). | User | |
+| POST | `/v1/completions` | Legacy text completion. Proxied to vLLM. | User | ✅ Epic 8 |
+| POST | `/v1/embeddings` | Generate text embeddings (if embedding model loaded). | User | ✅ Epic 8 |
 | GET | `/v1/models` | List available models. Returns model ID, size, quantization, status (loaded/available). | User | ✅ Rev 1 |
-| GET | `/v1/models/{model_id}` | Model details: parameters, context window, VRAM usage, capabilities. | User | |
+| GET | `/v1/models/{model_id}` | Model details: parameters, context window, VRAM usage, capabilities. | User | ✅ Epic 8 |
 
 ### Notes
 
@@ -41,15 +41,15 @@ These endpoints follow the de facto industry-standard LLM API format (originated
 
 Control which models are loaded, swap between them, and manage the model library.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/vault/models` | List all models on disk with status: `loaded`, `available`, `downloading`. | User |
-| GET | `/vault/models/{model_id}` | Detailed model info: size on disk, VRAM required, quantization, benchmark scores, description. | User |
-| POST | `/vault/models/{model_id}/load` | Load a model into GPU memory. Unloads current model if single-model mode. | Admin |
-| POST | `/vault/models/{model_id}/unload` | Unload model from GPU memory. | Admin |
-| GET | `/vault/models/active` | Returns currently loaded model(s) and their GPU allocation. | User |
-| POST | `/vault/models/import` | Import a new model from USB/mounted drive. Accepts path, validates format. | Admin |
-| DELETE | `/vault/models/{model_id}` | Delete a model from disk. Refuses if model is currently loaded. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| GET | `/vault/models` | List all models on disk with status: `loaded`, `available`, `downloading`. | User | ✅ Epic 8 |
+| GET | `/vault/models/{model_id}` | Detailed model info: size on disk, VRAM required, quantization, benchmark scores, description. | User | ✅ Epic 8 |
+| POST | `/vault/models/{model_id}/load` | Load a model into GPU memory. Unloads current model if single-model mode. | Admin | ✅ Epic 8 |
+| POST | `/vault/models/{model_id}/unload` | Unload model from GPU memory. | Admin | ✅ Epic 8 |
+| GET | `/vault/models/active` | Returns currently loaded model(s) and their GPU allocation. | User | ✅ Epic 8 |
+| POST | `/vault/models/import` | Import a new model from USB/mounted drive. Accepts path, validates format. | Admin | ✅ Epic 8 |
+| DELETE | `/vault/models/{model_id}` | Delete a model from disk. Refuses if model is currently loaded. | Admin | ✅ Epic 8 |
 
 ### Notes
 
@@ -71,7 +71,7 @@ Local conversation storage for the chat UI. All data stays on-device.
 | PUT | `/vault/conversations/{id}` | Update conversation metadata (title, system prompt, pinned status). | User | ✅ Rev 2 |
 | DELETE | `/vault/conversations/{id}` | Delete a conversation and all its messages. | User | ✅ Rev 2 |
 | POST | `/vault/conversations/{id}/messages` | Add a message to conversation. Triggers inference if role is `user`. | User | ✅ Rev 2 |
-| GET | `/vault/conversations/{id}/export` | Export conversation as JSON or Markdown. | User | |
+| GET | `/vault/conversations/{id}/export` | Export conversation as JSON or Markdown. | User | ✅ Epic 8 |
 
 ### Notes
 
@@ -112,13 +112,13 @@ Endpoints the dashboard and admin tools use to display system status.
 
 | Method | Endpoint | Description | Auth | Status |
 |--------|----------|-------------|------|--------|
-| GET | `/vault/system/health` | Overall system health. Returns status of each service (vLLM, API, DB, monitoring). | User | (see /vault/health) |
+| GET | `/vault/system/health` | Overall system health. Returns status of each service (vLLM, API, DB, monitoring). | User | ✅ Epic 8 |
 | GET | `/vault/system/gpu` | GPU status: per-GPU utilization, VRAM used/total, temperature, power draw, fan speed. | User | ✅ Rev 2 |
 | GET | `/vault/system/resources` | CPU usage, RAM usage, disk space (OS drive + model drive), uptime. | User | ✅ Rev 2 |
-| GET | `/vault/system/inference` | Inference stats: requests/min, avg latency, tokens/sec, active requests, queue depth. | User | |
-| GET | `/vault/system/services` | Status of all managed services: vLLM, Prometheus, Grafana, Cockpit, API gateway. | Admin | |
-| POST | `/vault/system/services/{name}/restart` | Restart a specific service. | Admin | |
-| GET | `/vault/system/logs` | Paginated system logs. Filterable by service, severity, time range. | Admin | |
+| GET | `/vault/system/inference` | Inference stats: requests/min, avg latency, tokens/sec, active requests, queue depth. | User | ✅ Epic 8 |
+| GET | `/vault/system/services` | Status of all managed services: vLLM, Prometheus, Grafana, Cockpit, API gateway. | Admin | ✅ Epic 8 |
+| POST | `/vault/system/services/{name}/restart` | Restart a specific service. | Admin | ✅ Epic 8 |
+| GET | `/vault/system/logs` | Paginated system logs. Filterable by service, severity, time range. | Admin | ✅ Epic 8 |
 | GET | `/vault/system/logs/stream` | WebSocket endpoint for real-time log streaming. | Admin | |
 
 **Added in Rev 2 (not in original spec):**
@@ -165,22 +165,22 @@ User management, API keys, configuration, and audit trail.
 
 | Method | Endpoint | Description | Auth | Status |
 |--------|----------|-------------|------|--------|
-| GET | `/vault/admin/audit` | Query audit log. Filter by user, action type, time range, endpoint. Paginated. | Admin | |
-| GET | `/vault/admin/audit/export` | Export audit log as CSV or JSON for compliance reporting. | Admin | |
-| GET | `/vault/admin/audit/stats` | Aggregate stats: requests per user, tokens consumed, most-used models. | Admin | |
+| GET | `/vault/admin/audit` | Query audit log. Filter by user, action type, time range, endpoint. Paginated. | Admin | ✅ Epic 8 |
+| GET | `/vault/admin/audit/export` | Export audit log as CSV or JSON for compliance reporting. | Admin | ✅ Epic 8 |
+| GET | `/vault/admin/audit/stats` | Aggregate stats: requests per user, tokens consumed, most-used models. | Admin | ✅ Epic 8 |
 
-> **Note:** AuditLog table and middleware writes are ✅ Rev 2 (every request logged). Query/export/stats endpoints not yet built.
+> **Note:** AuditLog table and middleware writes are ✅ Rev 2 (every request logged). Query/export/stats endpoints ✅ Epic 8.
 
 ### 6.4 System Configuration
 
 | Method | Endpoint | Description | Auth | Status |
 |--------|----------|-------------|------|--------|
-| GET | `/vault/admin/config` | Current system configuration (network, TLS, default model, rate limits, etc.). | Admin | |
-| PUT | `/vault/admin/config` | Update configuration. Validates before applying. Some changes require service restart. | Admin | |
+| GET | `/vault/admin/config` | Current system configuration (network, TLS, default model, rate limits, etc.). | Admin | ✅ Epic 8 |
+| PUT | `/vault/admin/config` | Update configuration. Validates before applying. Some changes require service restart. | Admin | ✅ Epic 8 |
 | GET | `/vault/admin/config/network` | Network settings: hostname, IP, DNS, proxy (if applicable). | Admin | ✅ Rev 2 |
 | PUT | `/vault/admin/config/network` | Update network config. | Admin | ✅ Rev 2 |
-| GET | `/vault/admin/config/tls` | TLS certificate info: issuer, expiry, type (self-signed/custom). | Admin | |
-| POST | `/vault/admin/config/tls` | Upload custom TLS certificate and private key. | Admin | |
+| GET | `/vault/admin/config/tls` | TLS certificate info: issuer, expiry, type (self-signed/custom). | Admin | ✅ Epic 8 |
+| POST | `/vault/admin/config/tls` | Upload custom TLS certificate and private key. | Admin | ✅ Epic 8 |
 
 **Added in Rev 2 (not in original spec):**
 
@@ -248,12 +248,12 @@ Used only during initial setup. These endpoints are unauthenticated (protected b
 
 For real-time features in the dashboard.
 
-| Endpoint | Description | Auth |
-|----------|-------------|------|
-| `ws://vault-cube.local/api/ws/inference` | Real-time inference stream (alternative to SSE for chat). | User |
-| `ws://vault-cube.local/api/ws/system` | Live system metrics push: GPU util, temps, request rate. Dashboard subscribes on load. | User |
-| `ws://vault-cube.local/api/ws/logs` | Live log stream for admin console. | Admin |
-| `ws://vault-cube.local/api/ws/updates` | Update progress stream during update apply. | Admin |
+| Endpoint | Description | Auth | Status |
+|----------|-------------|------|--------|
+| `ws://vault-cube.local/api/ws/inference` | Real-time inference stream (alternative to SSE for chat). | User | |
+| `ws://vault-cube.local/api/ws/system` | Live system metrics push: GPU util, temps, request rate. Dashboard subscribes on load. | User | ✅ Epic 8 |
+| `ws://vault-cube.local/api/ws/logs` | Live log stream for admin console. | Admin | |
+| `ws://vault-cube.local/api/ws/updates` | Update progress stream during update apply. | Admin | |
 
 ---
 
@@ -370,25 +370,25 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 
 | Domain | Endpoints | Built | Phase | Status |
 |--------|-----------|-------|-------|--------|
-| Inference (Industry-Standard API) | 5 | 2 | MVP | ✅ Rev 1 (chat + models) |
-| System Health & Monitoring | 8 | 5 | MVP | ✅ Rev 1+2 (health, gpu, resources, insights, activity) |
-| Conversations & History | 7 | 6 | MVP | ✅ Rev 2 (export remaining) |
-| Administration (Keys, Audit, Config) | 14 | 7 | MVP | ✅ Rev 2 partial (keys 3/4, config 4/6, audit 0/3) |
+| Inference (Industry-Standard API) | 5 | 5 | MVP | ✅ Rev 1 + Epic 8 (chat, completions, embeddings, models, model detail) |
+| System Health & Monitoring | 8 | 8 | MVP | ✅ Rev 1+2 + Epic 8 (health, gpu, resources, inference, services, restart, logs, insights, activity) |
+| Conversations & History | 7 | 7 | MVP | ✅ Rev 2 + Epic 8 (CRUD + export) |
+| Administration (Keys, Audit, Config) | 14 | 14 | MVP | ✅ Rev 2 + Epic 8 (keys 4/4, config 6/6, audit 3/3) |
 | User Management | 4 | 4 | Phase 2 | ✅ Rev 2 (pulled forward) |
 | Training & Fine-Tuning | 12 | 7 | Phase 2 | ✅ Rev 2 partial (jobs done, adapters later) |
-| Model Management | 7 | 0 | MVP | |
+| Model Management | 7 | 7 | MVP | ✅ Epic 8 |
 | Updates & Maintenance | 7 | 0 | MVP | |
 | First-Boot / Onboarding | 7 | 7 | MVP | ✅ |
-| WebSockets | 4 | 0 | MVP / Phase 2 | |
+| WebSockets | 4 | 1 | MVP / Phase 2 | ✅ Epic 8 partial (/ws/system) |
 | Quarantine & Data Security | 9 | 0 | MVP* | |
 | Documents & RAG | 8 | 0 | Phase 2 | |
 | Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
 | Developer Mode | 5 | 0 | Phase 3 | |
-| **Total** | **102** | **38** | | |
+| **Total** | **102** | **63** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*
 
-**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → MVP: ~57 → Phase 2: +27 → Phase 3: +5**
+**Rev 1: 3 endpoints → Rev 2: 31 endpoints (97 tests) → +7 first-boot wizard (117 tests) → +1 key update (140 tests) → +24 Epic 8 (234 tests) → MVP remaining: updates + quarantine**
 
 ---
 
@@ -450,12 +450,19 @@ Standard HTTP status codes: 400 (bad request), 401 (missing/invalid key), 403 (i
 - System commands (hostnamectl, nmcli, openssl) gracefully no-op on dev
 - Dual-layer state: DB (SystemConfig) + flag file + in-memory cache
 
+### Epic 8: Full API Gateway ✅ Complete (234 tests total)
+- Audit log: query with filters/pagination, CSV/JSON export, aggregate stats (3 endpoints)
+- Config: full config GET/PUT, TLS info/upload (4 endpoints)
+- Inference: text completions, embeddings, model detail (3 endpoints)
+- Conversations: export as JSON/Markdown (1 endpoint)
+- System monitoring: expanded health, inference stats, services list/restart, logs (5 endpoints)
+- Model management: list, detail, load, unload, active, import, delete (7 endpoints)
+- WebSocket: live system metrics push (1 endpoint)
+
 ### Next: MVP Complete (Stage 3)
-- Model management (load/unload/active)
-- Audit log query/export endpoints
 - Quarantine pipeline Stages 1-3 (file integrity, malware, sanitization)
 - Update mechanism (USB scan, apply, progress)
-- WebSocket endpoints (system metrics, log streaming)
+- Support bundle, backup/restore, factory reset
 
 ### Phase 2 — Data Platform (Stage 4)
 - Documents & RAG pipeline

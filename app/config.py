@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     vault_deployment_mode: str = "cube"  # "cube" or "cloud"
     vault_admin_api_key: str | None = None  # Deterministic admin key for cloud (vault_sk_<48 hex>)
 
+    # Model management
+    vault_models_dir: str = "/opt/vault/models"
+    vault_vllm_container_name: str = "vault-vllm"
+    vault_gpu_config_path: str = "config/gpu-config.yaml"
+
     # HTTP client timeouts (seconds)
     vault_http_connect_timeout: float = 5.0
     vault_http_read_timeout: float = 120.0

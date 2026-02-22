@@ -208,3 +208,18 @@ class ConversationService:
             await session.refresh(msg)
 
             return _message_to_response(msg)
+
+    async def export_conversation(self, conversation_id: str, format: str = "json") -> str | dict:
+        """Export conversation as JSON dict or Markdown string."""
+        conv_response = await self.get_conversation(conversation_id)
+
+        if format == "markdown":
+            lines = [f"# {conv_response.title}\n"]
+            for msg in conv_response.messages:
+                ts = datetime.fromtimestamp(msg.timestamp / 1000, tz=timezone.utc).isoformat()
+                lines.append(f"### {msg.role.capitalize()} ({ts})\n")
+                lines.append(f"{msg.content}\n")
+                lines.append("---\n")
+            return "\n".join(lines)
+
+        return conv_response.model_dump()

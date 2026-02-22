@@ -258,6 +258,69 @@ class AdminService:
 
         return await self.get_system_settings()
 
+    # ── Full Config ──────────────────────────────────────────────────────
+
+    async def get_full_config(self) -> dict:
+        """Merge network + system + TLS config."""
+        network = await self.get_network_config()
+        system = await self.get_system_settings()
+        tls = await self.get_tls_info()
+        return {"network": network, "system": system, "tls": tls, "restart_required": False}
+
+    async def update_full_config(self, updates: dict) -> dict:
+        """Partial update across config sections."""
+        restart_required = False
+        if "network" in updates and updates["network"]:
+            network_updates = updates["network"]
+            if isinstance(network_updates, dict):
+                if "hostname" in network_updates:
+                    restart_required = True
+                await self.update_network_config(**network_updates)
+        if "system" in updates and updates["system"]:
+            system_updates = updates["system"]
+            if isinstance(system_updates, dict):
+                await self.update_system_settings(**system_updates)
+        result = await self.get_full_config()
+        result["restart_required"] = restart_required
+        return result
+
+    # ── TLS ──────────────────────────────────────────────────────────────
+
+    async def get_tls_info(self) -> dict:
+        """Get TLS certificate info."""
+        from pathlib import Path
+        from app.config import settings
+
+        cert_dir = Path(settings.vault_tls_cert_dir)
+        cert_path = cert_dir / "cert.pem"
+        if not cert_path.exists():
+            return {"enabled": False, "self_signed": True, "issuer": None, "expires": None, "serial": None}
+
+        return {
+            "enabled": True,
+            "self_signed": True,
+            "issuer": "Vault AI (self-signed)",
+            "expires": None,
+            "serial": None,
+        }
+
+    async def upload_tls_cert(self, certificate: str, private_key: str) -> dict:
+        """Validate and write TLS cert to disk."""
+        from pathlib import Path
+        from app.config import settings
+
+        if "-----BEGIN CERTIFICATE-----" not in certificate:
+            raise VaultError(code="validation_error", message="Invalid certificate: must be PEM format.", status=400)
+        if "-----BEGIN" not in private_key:
+            raise VaultError(code="validation_error", message="Invalid private key: must be PEM format.", status=400)
+
+        cert_dir = Path(settings.vault_tls_cert_dir)
+        cert_dir.mkdir(parents=True, exist_ok=True)
+        (cert_dir / "cert.pem").write_text(certificate)
+        (cert_dir / "key.pem").write_text(private_key)
+
+        return await self.get_tls_info()
+
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     async def _populate_defaults(self, defaults: dict) -> None:

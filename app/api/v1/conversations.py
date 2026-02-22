@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.schemas.conversations import (
     ConversationCreate,
@@ -28,6 +29,25 @@ async def list_conversations(
 async def create_conversation(body: ConversationCreate) -> ConversationSummary:
     """Create a new conversation."""
     return await _service.create_conversation(body)
+
+
+@router.get("/vault/conversations/{conversation_id}/export")
+async def export_conversation(
+    conversation_id: str,
+    format: str = Query("json", pattern="^(json|markdown)$"),
+):
+    """Export a conversation as JSON or Markdown."""
+    result = await _service.export_conversation(conversation_id, format=format)
+    if format == "markdown":
+        return StreamingResponse(
+            iter([result]),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f"attachment; filename=conversation-{conversation_id}.md"},
+        )
+    return JSONResponse(
+        content=result,
+        headers={"Content-Disposition": f"attachment; filename=conversation-{conversation_id}.json"},
+    )
 
 
 @router.get("/vault/conversations/{conversation_id}")

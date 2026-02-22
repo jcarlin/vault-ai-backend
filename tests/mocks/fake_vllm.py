@@ -95,6 +95,78 @@ async def chat_completions(request: _ChatRequest):
     }
 
 
+class _CompletionRequest(BaseModel):
+    model: str = "qwen2.5-32b-awq"
+    prompt: str | list[str] = "Hello"
+    stream: bool = False
+    max_tokens: int | None = None
+    temperature: float = 0.7
+    top_p: float = 1.0
+    stop: str | list[str] | None = None
+    echo: bool = False
+    suffix: str | None = None
+
+
+@app.post("/v1/completions")
+async def text_completions(request: _CompletionRequest):
+    comp_id = f"cmpl-{uuid.uuid4().hex[:12]}"
+    created = int(time.time())
+    full_text = "".join(STREAM_TOKENS)
+
+    if request.stream:
+        async def generate():
+            for token in STREAM_TOKENS:
+                chunk = {
+                    "id": comp_id,
+                    "object": "text_completion",
+                    "created": created,
+                    "model": request.model,
+                    "choices": [{"index": 0, "text": token, "finish_reason": None}],
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+            final = {
+                "id": comp_id,
+                "object": "text_completion",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "text": "", "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(final)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+
+    return {
+        "id": comp_id,
+        "object": "text_completion",
+        "created": created,
+        "model": request.model,
+        "choices": [{"index": 0, "text": full_text, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
+    }
+
+
+class _EmbeddingRequest(BaseModel):
+    model: str = "nomic-embed-text:latest"
+    input: str | list[str] = "test"
+    encoding_format: str = "float"
+
+
+@app.post("/v1/embeddings")
+async def create_embeddings(request: _EmbeddingRequest):
+    inputs = [request.input] if isinstance(request.input, str) else request.input
+    data = [
+        {"object": "embedding", "embedding": [0.1] * 384, "index": i}
+        for i in range(len(inputs))
+    ]
+    return {
+        "object": "list",
+        "data": data,
+        "model": request.model,
+        "usage": {"prompt_tokens": len(inputs) * 5, "total_tokens": len(inputs) * 5},
+    }
+
+
 @app.get("/v1/models")
 async def list_models():
     return {
@@ -176,7 +248,11 @@ _SHOW_DATA = {
 @app.post("/api/show")
 async def ollama_show(request: _ShowRequest):
     """Ollama /api/show — detailed model info including context length."""
-    return _SHOW_DATA.get(request.name, _SHOW_DATA["qwen2.5-32b-awq:latest"])
+    data = _SHOW_DATA.get(request.name)
+    if data is None:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"error": f"model '{request.name}' not found"})
+    return data
 
 
 @app.get("/api/ps")

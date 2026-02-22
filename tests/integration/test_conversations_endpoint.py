@@ -271,3 +271,80 @@ class TestAddMessage:
         )
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
+
+
+class TestExportConversation:
+    async def test_export_json(self, conv_auth_client):
+        """GET /vault/conversations/{id}/export?format=json returns JSON."""
+        create_resp = await conv_auth_client.post(
+            "/vault/conversations",
+            json={"title": "Export Test", "model_id": "qwen2.5-32b-awq"},
+        )
+        conv_id = create_resp.json()["id"]
+
+        await conv_auth_client.post(
+            f"/vault/conversations/{conv_id}/messages",
+            json={"role": "user", "content": "Hello"},
+        )
+        await conv_auth_client.post(
+            f"/vault/conversations/{conv_id}/messages",
+            json={"role": "assistant", "content": "Hi there!"},
+        )
+
+        response = await conv_auth_client.get(
+            f"/vault/conversations/{conv_id}/export?format=json"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Export Test"
+        assert len(data["messages"]) == 2
+        assert data["messages"][0]["role"] == "user"
+        assert data["messages"][1]["role"] == "assistant"
+        assert "content-disposition" in response.headers
+        assert "json" in response.headers["content-disposition"]
+
+    async def test_export_markdown(self, conv_auth_client):
+        """GET /vault/conversations/{id}/export?format=markdown returns Markdown."""
+        create_resp = await conv_auth_client.post(
+            "/vault/conversations",
+            json={"title": "MD Export", "model_id": "qwen2.5-32b-awq"},
+        )
+        conv_id = create_resp.json()["id"]
+
+        await conv_auth_client.post(
+            f"/vault/conversations/{conv_id}/messages",
+            json={"role": "user", "content": "What is AI?"},
+        )
+
+        response = await conv_auth_client.get(
+            f"/vault/conversations/{conv_id}/export?format=markdown"
+        )
+        assert response.status_code == 200
+        assert "text/markdown" in response.headers["content-type"]
+        text = response.text
+        assert "# MD Export" in text
+        assert "### User" in text
+        assert "What is AI?" in text
+
+    async def test_export_nonexistent(self, conv_auth_client):
+        """GET /vault/conversations/{id}/export returns 404 for missing conversation."""
+        response = await conv_auth_client.get(
+            "/vault/conversations/00000000-0000-0000-0000-000000000000/export?format=json"
+        )
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+
+    async def test_export_default_format_is_json(self, conv_auth_client):
+        """GET /vault/conversations/{id}/export without format defaults to JSON."""
+        create_resp = await conv_auth_client.post(
+            "/vault/conversations",
+            json={"title": "Default Format", "model_id": "qwen2.5-32b-awq"},
+        )
+        conv_id = create_resp.json()["id"]
+
+        response = await conv_auth_client.get(
+            f"/vault/conversations/{conv_id}/export"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Default Format"

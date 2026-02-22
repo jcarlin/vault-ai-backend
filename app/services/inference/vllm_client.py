@@ -6,6 +6,8 @@ import structlog
 
 from app.core.exceptions import BackendUnavailableError
 from app.schemas.chat import ChatCompletionRequest
+from app.schemas.completions import CompletionRequest
+from app.schemas.embeddings import EmbeddingRequest
 from app.schemas.models import ModelInfo
 from app.services.inference.base import InferenceBackend
 
@@ -52,6 +54,45 @@ class VLLMBackend(InferenceBackend):
                 response = await self._client.post(url, json=payload, headers=self._headers)
                 response.raise_for_status()
                 yield response.text
+        except httpx.ConnectError as e:
+            raise BackendUnavailableError(f"Cannot connect to vLLM at {self.base_url}: {e}")
+        except httpx.HTTPStatusError as e:
+            raise BackendUnavailableError(f"vLLM returned error: {e.response.status_code}")
+        except httpx.TimeoutException:
+            raise BackendUnavailableError("vLLM request timed out.")
+
+    async def text_completion(self, request: CompletionRequest) -> AsyncIterator[str]:
+        """Proxy text completion to vLLM, yielding SSE lines."""
+        url = f"{self.base_url}{self._api_prefix}/completions"
+        payload = request.model_dump(exclude_none=True)
+
+        try:
+            if request.stream:
+                async with self._client.stream("POST", url, json=payload, headers=self._headers) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.strip():
+                            yield line + "\n"
+            else:
+                response = await self._client.post(url, json=payload, headers=self._headers)
+                response.raise_for_status()
+                yield response.text
+        except httpx.ConnectError as e:
+            raise BackendUnavailableError(f"Cannot connect to vLLM at {self.base_url}: {e}")
+        except httpx.HTTPStatusError as e:
+            raise BackendUnavailableError(f"vLLM returned error: {e.response.status_code}")
+        except httpx.TimeoutException:
+            raise BackendUnavailableError("vLLM request timed out.")
+
+    async def generate_embeddings(self, request: EmbeddingRequest) -> dict:
+        """Generate embeddings via vLLM."""
+        url = f"{self.base_url}{self._api_prefix}/embeddings"
+        payload = request.model_dump(exclude_none=True)
+
+        try:
+            response = await self._client.post(url, json=payload, headers=self._headers)
+            response.raise_for_status()
+            return response.json()
         except httpx.ConnectError as e:
             raise BackendUnavailableError(f"Cannot connect to vLLM at {self.base_url}: {e}")
         except httpx.HTTPStatusError as e:

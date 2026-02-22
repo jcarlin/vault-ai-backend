@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.core.exceptions import NotFoundError
 from app.dependencies import require_admin
 from app.schemas.admin import (
+    FullConfigResponse,
+    FullConfigUpdate,
     KeyCreate,
     KeyCreateResponse,
     KeyResponse,
@@ -11,6 +13,8 @@ from app.schemas.admin import (
     NetworkConfigUpdate,
     SystemSettingsResponse,
     SystemSettingsUpdate,
+    TlsInfoResponse,
+    TlsUploadRequest,
     UserCreate,
     UserResponse,
     UserUpdate,
@@ -190,3 +194,37 @@ async def update_system_settings(body: SystemSettingsUpdate) -> SystemSettingsRe
     updates = body.model_dump(exclude_none=True)
     settings = await service.update_system_settings(**updates)
     return SystemSettingsResponse(**settings)
+
+
+# ── Full Config ────────────────────────────────────────────────────────────
+
+
+@router.get("/vault/admin/config")
+async def get_full_config() -> FullConfigResponse:
+    service = AdminService()
+    config = await service.get_full_config()
+    return FullConfigResponse(**config)
+
+
+@router.put("/vault/admin/config")
+async def update_full_config(body: FullConfigUpdate) -> FullConfigResponse:
+    service = AdminService()
+    result = await service.update_full_config(body.model_dump(exclude_none=True))
+    return FullConfigResponse(**result)
+
+
+# ── TLS ────────────────────────────────────────────────────────────────────
+
+
+@router.get("/vault/admin/config/tls")
+async def get_tls_info() -> TlsInfoResponse:
+    service = AdminService()
+    info = await service.get_tls_info()
+    return TlsInfoResponse(**info)
+
+
+@router.post("/vault/admin/config/tls")
+async def upload_tls_cert(body: TlsUploadRequest) -> TlsInfoResponse:
+    service = AdminService()
+    info = await service.upload_tls_cert(body.certificate, body.private_key)
+    return TlsInfoResponse(**info)
