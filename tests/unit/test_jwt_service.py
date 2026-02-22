@@ -39,13 +39,11 @@ class TestJWTService:
         jwt_short = JWTService(
             secret_key="test-secret-key-for-unit-tests",
             algorithm="HS256",
-            expiry_seconds=0,  # Immediate expiry
+            expiry_seconds=-1,  # Already expired
         )
         token = jwt_short.create_token(
             user_id="user-123", role="user", name="Test"
         )
-        # Token expires immediately
-        time.sleep(1)
         claims = jwt_short.decode_token(token)
         assert claims is None
 
