@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import select, update
 
 import app.core.database as db_module
-from app.core.database import ApiKey, SystemConfig, User
+from app.core.database import ApiKey, LdapGroupMapping, SystemConfig, User
 from app.core.exceptions import NotFoundError, VaultError
 from app.services.auth import AuthService
 
@@ -37,6 +37,18 @@ MODEL_DEFAULTS = {
     "models.default_system_prompt": "",
 }
 
+LDAP_DEFAULTS = {
+    "ldap.enabled": "false",
+    "ldap.url": "ldap://localhost:389",
+    "ldap.bind_dn": "",
+    "ldap.bind_password": "",
+    "ldap.user_search_base": "",
+    "ldap.group_search_base": "",
+    "ldap.user_search_filter": "(sAMAccountName={username})",
+    "ldap.use_ssl": "false",
+    "ldap.default_role": "user",
+}
+
 QUARANTINE_DEFAULTS = {
     "quarantine.max_file_size": "1073741824",
     "quarantine.max_batch_files": "100",
@@ -54,14 +66,22 @@ class AdminService:
 
     # ── Users ───────────────────────────────────────────────────────────────
 
-    async def list_users(self) -> list[User]:
+    async def list_users(self, auth_source: str | None = None) -> list[User]:
         async with self._session_factory() as session:
-            result = await session.execute(
-                select(User).order_by(User.created_at.desc())
-            )
+            query = select(User).order_by(User.created_at.desc())
+            if auth_source:
+                query = query.where(User.auth_source == auth_source)
+            result = await session.execute(query)
             return list(result.scalars().all())
 
-    async def create_user(self, name: str, email: str, role: str = "user") -> User:
+    async def create_user(
+        self,
+        name: str,
+        email: str,
+        role: str = "user",
+        password: str | None = None,
+        auth_source: str = "local",
+    ) -> User:
         async with self._session_factory() as session:
             # Check for duplicate email
             existing = await session.execute(
@@ -74,12 +94,21 @@ class AdminService:
                     status=409,
                 )
 
+            password_hash = None
+            if password:
+                import bcrypt
+                password_hash = bcrypt.hashpw(
+                    password.encode(), bcrypt.gensalt()
+                ).decode()
+
             user = User(
                 id=str(uuid.uuid4()),
                 name=name,
                 email=email,
                 role=role,
                 status="active",
+                password_hash=password_hash,
+                auth_source=auth_source,
             )
             session.add(user)
             await session.commit()
@@ -376,6 +405,118 @@ class AdminService:
         (cert_dir / "key.pem").write_text(private_key)
 
         return await self.get_tls_info()
+
+    # ── LDAP Config ────────────────────────────────────────────────────────
+
+    async def get_ldap_config(self) -> dict:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(SystemConfig).where(SystemConfig.key.startswith("ldap."))
+            )
+            rows = {r.key: r.value for r in result.scalars().all()}
+
+        if not rows:
+            await self._populate_defaults(LDAP_DEFAULTS)
+            rows = dict(LDAP_DEFAULTS)
+
+        return {
+            "enabled": rows.get("ldap.enabled", "false").lower() == "true",
+            "url": rows.get("ldap.url", "ldap://localhost:389"),
+            "bind_dn": rows.get("ldap.bind_dn", ""),
+            "bind_password": rows.get("ldap.bind_password", ""),
+            "user_search_base": rows.get("ldap.user_search_base", ""),
+            "group_search_base": rows.get("ldap.group_search_base", ""),
+            "user_search_filter": rows.get("ldap.user_search_filter", "(sAMAccountName={username})"),
+            "use_ssl": rows.get("ldap.use_ssl", "false").lower() == "true",
+            "default_role": rows.get("ldap.default_role", "user"),
+        }
+
+    async def update_ldap_config(self, **updates) -> dict:
+        async with self._session_factory() as session:
+            for field, value in updates.items():
+                if value is None:
+                    continue
+                key = f"ldap.{field}"
+                if isinstance(value, bool):
+                    stored_value = "true" if value else "false"
+                else:
+                    stored_value = str(value)
+
+                existing = await session.execute(
+                    select(SystemConfig).where(SystemConfig.key == key)
+                )
+                row = existing.scalar_one_or_none()
+                if row:
+                    row.value = stored_value
+                else:
+                    session.add(SystemConfig(key=key, value=stored_value))
+            await session.commit()
+
+        return await self.get_ldap_config()
+
+    # ── LDAP Group Mappings ──────────────────────────────────────────────
+
+    async def list_ldap_mappings(self) -> list[LdapGroupMapping]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(LdapGroupMapping).order_by(LdapGroupMapping.priority.desc())
+            )
+            return list(result.scalars().all())
+
+    async def create_ldap_mapping(
+        self, ldap_group_dn: str, vault_role: str = "user", priority: int = 0
+    ) -> LdapGroupMapping:
+        async with self._session_factory() as session:
+            # Check for duplicate
+            existing = await session.execute(
+                select(LdapGroupMapping).where(LdapGroupMapping.ldap_group_dn == ldap_group_dn)
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise VaultError(
+                    code="duplicate_mapping",
+                    message=f"A mapping for group DN '{ldap_group_dn}' already exists.",
+                    status=409,
+                )
+
+            mapping = LdapGroupMapping(
+                ldap_group_dn=ldap_group_dn,
+                vault_role=vault_role,
+                priority=priority,
+            )
+            session.add(mapping)
+            await session.commit()
+            await session.refresh(mapping)
+            return mapping
+
+    async def update_ldap_mapping(self, mapping_id: int, **updates) -> LdapGroupMapping:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(LdapGroupMapping).where(LdapGroupMapping.id == mapping_id)
+            )
+            mapping = result.scalar_one_or_none()
+            if mapping is None:
+                raise NotFoundError(f"LDAP group mapping with id {mapping_id} not found.")
+
+            for field, value in updates.items():
+                if value is not None:
+                    setattr(mapping, field, value)
+
+            await session.commit()
+            await session.refresh(mapping)
+            return mapping
+
+    async def delete_ldap_mapping(self, mapping_id: int) -> bool:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(LdapGroupMapping).where(LdapGroupMapping.id == mapping_id)
+            )
+            mapping = result.scalar_one_or_none()
+            if mapping is None:
+                raise NotFoundError(f"LDAP group mapping with id {mapping_id} not found.")
+
+            await session.delete(mapping)
+            await session.commit()
+            return True
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

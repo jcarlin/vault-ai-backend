@@ -5,6 +5,8 @@ class UserCreate(BaseModel):
     name: str
     email: str
     role: str = "user"
+    password: str | None = None
+    auth_source: str = "local"
 
 
 class UserUpdate(BaseModel):
@@ -23,6 +25,8 @@ class UserResponse(BaseModel):
     last_active: str | None
     api_key_count: int = 0
     created_at: str
+    auth_source: str = "local"
+    ldap_dn: str | None = None
 
 
 class KeyCreate(BaseModel):

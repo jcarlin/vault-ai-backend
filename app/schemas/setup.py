@@ -33,6 +33,18 @@ class SetupTlsRequest(BaseModel):
     private_key: str | None = None  # PEM string
 
 
+class SetupSsoRequest(BaseModel):
+    enabled: bool = True
+    url: str
+    bind_dn: str
+    bind_password: str
+    user_search_base: str
+    group_search_base: str = ""
+    user_search_filter: str = "(sAMAccountName={username})"
+    use_ssl: bool = False
+    test_connection: bool = True
+
+
 class SetupModelRequest(BaseModel):
     model_id: str
 

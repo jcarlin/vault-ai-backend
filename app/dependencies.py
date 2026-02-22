@@ -10,7 +10,23 @@ def get_inference_backend(request: Request) -> InferenceBackend:
 
 
 def require_admin(request: Request) -> None:
-    """Dependency that enforces admin scope on the current API key."""
-    scope = getattr(request.state, "api_key_scope", None)
-    if scope != "admin":
+    """Dependency that enforces admin access via either API key scope or JWT role."""
+    auth_type = getattr(request.state, "auth_type", None)
+
+    if auth_type == "jwt":
+        role = getattr(request.state, "user_role", None)
+        if role == "admin":
+            return
+        raise AuthorizationError("This endpoint requires admin privileges.")
+
+    if auth_type == "key":
+        scope = getattr(request.state, "api_key_scope", None)
+        if scope == "admin":
+            return
         raise AuthorizationError("This endpoint requires an admin-scoped API key.")
+
+    # Fallback: legacy path (auth_type not set = old API key middleware)
+    scope = getattr(request.state, "api_key_scope", None)
+    if scope == "admin":
+        return
+    raise AuthorizationError("This endpoint requires admin privileges.")

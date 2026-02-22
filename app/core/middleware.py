@@ -15,9 +15,17 @@ logger = structlog.get_logger()
 # Paths that skip authentication
 PUBLIC_PATHS = {"/vault/health", "/", "/docs", "/openapi.json", "/redoc", "/metrics"}
 
+# Paths that skip authentication even with a Bearer token prefix check
+# (login and ldap-enabled must be accessible without a valid token)
+AUTH_PUBLIC_PATHS = {"/vault/auth/login", "/vault/auth/ldap-enabled"}
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """Validates Bearer token on every request except public paths."""
+    """Validates Bearer token on every request except public paths.
+
+    Supports dual-auth: API keys (vault_sk_*) and JWT tokens (eyJ*).
+    Differentiates by token prefix.
+    """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Setup wizard endpoints: unauthenticated when pending, 404 when complete
@@ -32,16 +40,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in PUBLIC_PATHS:
             return await call_next(request)
 
+        # Auth-related public paths (login, ldap-enabled check)
+        if request.url.path in AUTH_PUBLIC_PATHS:
+            return await call_next(request)
+
         auth_header = request.headers.get("authorization", "")
         if not auth_header.startswith("Bearer "):
             error = AuthenticationError("Missing or malformed Authorization header.")
             return JSONResponse(status_code=error.status, content=error.to_dict())
 
         token = auth_header.removeprefix("Bearer ").strip()
-        if not token.startswith("vault_sk_"):
-            error = AuthenticationError("Invalid API key format.")
-            return JSONResponse(status_code=error.status, content=error.to_dict())
 
+        # Route 1: API key (vault_sk_*)
+        if token.startswith("vault_sk_"):
+            return await self._authenticate_api_key(request, call_next, token)
+
+        # Route 2: JWT token (try decode)
+        return await self._authenticate_jwt(request, call_next, token)
+
+    async def _authenticate_api_key(
+        self, request: Request, call_next: RequestResponseEndpoint, token: str
+    ) -> Response:
+        """Validate an API key token."""
         token_hash = hash_api_key(token)
 
         from sqlalchemy import select, update
@@ -57,6 +77,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(status_code=error.status, content=error.to_dict())
 
             # Store key info on request state for downstream use
+            request.state.auth_type = "key"
             request.state.api_key_id = key_row.id
             request.state.api_key_prefix = key_row.key_prefix
             request.state.api_key_scope = key_row.scope
@@ -66,6 +87,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 update(ApiKey).where(ApiKey.id == key_row.id).values(last_used_at=datetime.now(timezone.utc))
             )
             await session.commit()
+
+        return await call_next(request)
+
+    async def _authenticate_jwt(
+        self, request: Request, call_next: RequestResponseEndpoint, token: str
+    ) -> Response:
+        """Validate a JWT token."""
+        from app.services.jwt_service import JWTService
+
+        jwt_service = JWTService()
+        claims = jwt_service.decode_token(token)
+
+        if claims is None:
+            error = AuthenticationError("Invalid or expired token.")
+            return JSONResponse(status_code=error.status, content=error.to_dict())
+
+        # Store JWT info on request state
+        request.state.auth_type = "jwt"
+        request.state.user_id = claims.get("sub")
+        request.state.user_role = claims.get("role", "user")
+        request.state.user_name = claims.get("name", "")
+        request.state.auth_source = claims.get("auth_source", "local")
 
         return await call_next(request)
 

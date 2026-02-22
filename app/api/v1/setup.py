@@ -6,6 +6,7 @@ from app.schemas.setup import (
     SetupCompleteResponse,
     SetupModelRequest,
     SetupNetworkRequest,
+    SetupSsoRequest,
     SetupStatusResponse,
     SetupTlsRequest,
     SetupVerifyResponse,
@@ -41,6 +42,29 @@ async def create_admin(body: SetupAdminRequest) -> SetupAdminResponse:
     service = SetupService()
     result = await service.create_admin(name=body.name, email=body.email)
     return SetupAdminResponse(**result)
+
+
+@router.post("/vault/setup/sso")
+async def configure_sso(body: SetupSsoRequest) -> dict:
+    service = SetupService()
+    result = await service.configure_sso(
+        enabled=body.enabled,
+        url=body.url,
+        bind_dn=body.bind_dn,
+        bind_password=body.bind_password,
+        user_search_base=body.user_search_base,
+        group_search_base=body.group_search_base,
+        user_search_filter=body.user_search_filter,
+        use_ssl=body.use_ssl,
+        test_connection=body.test_connection,
+    )
+    return result
+
+
+@router.post("/vault/setup/sso/skip")
+async def skip_sso() -> dict:
+    service = SetupService()
+    return await service.skip_sso()
 
 
 @router.post("/vault/setup/tls")

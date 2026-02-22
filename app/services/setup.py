@@ -15,7 +15,8 @@ from app.services.admin import AdminService
 
 logger = structlog.get_logger()
 
-SETUP_STEPS = ["network", "admin", "tls", "model"]
+SETUP_STEPS = ["network", "admin", "sso", "tls", "model"]
+REQUIRED_SETUP_STEPS = ["network", "admin", "tls", "model"]  # sso is optional
 
 
 class SetupService:
@@ -215,6 +216,61 @@ class SetupService:
             "key_prefix": key_row.key_prefix,
         }
 
+    # ── SSO Step (optional — skippable) ─────────────────────────────────────
+
+    async def configure_sso(
+        self,
+        enabled: bool = True,
+        url: str = "",
+        bind_dn: str = "",
+        bind_password: str = "",
+        user_search_base: str = "",
+        group_search_base: str = "",
+        user_search_filter: str = "(sAMAccountName={username})",
+        use_ssl: bool = False,
+        test_connection: bool = True,
+    ) -> dict:
+        await self._require_setup_not_complete()
+
+        # Save LDAP config via AdminService
+        await self._admin_service.update_ldap_config(
+            enabled=enabled,
+            url=url,
+            bind_dn=bind_dn,
+            bind_password=bind_password,
+            user_search_base=user_search_base,
+            group_search_base=group_search_base,
+            user_search_filter=user_search_filter,
+            use_ssl=use_ssl,
+        )
+
+        # Optionally test connection
+        test_result = None
+        if enabled and test_connection:
+            from app.services.ldap_service import LdapService
+            ldap_svc = LdapService(
+                url=url,
+                bind_dn=bind_dn,
+                bind_password=bind_password,
+                user_search_base=user_search_base,
+                group_search_base=group_search_base,
+                user_search_filter=user_search_filter,
+                use_ssl=use_ssl,
+            )
+            test_result = await ldap_svc.test_connection()
+
+        await self._mark_step_complete("sso")
+        result = {"status": "configured", "enabled": enabled}
+        if test_result:
+            result["test"] = test_result
+        return result
+
+    async def skip_sso(self) -> dict:
+        """Skip SSO configuration (LDAP is optional)."""
+        await self._require_setup_not_complete()
+        await self._mark_step_complete("sso")
+        return {"status": "skipped"}
+
     # ── TLS Step ─────────────────────────────────────────────────────────────
 
     async def configure_tls(
@@ -405,9 +461,9 @@ class SetupService:
     async def complete_setup(self) -> dict:
         await self._require_setup_not_complete()
 
-        # Verify all required steps are done
+        # Verify all required steps are done (sso is optional)
         completed = await self._get_completed_steps()
-        missing = [s for s in SETUP_STEPS if s not in completed]
+        missing = [s for s in REQUIRED_SETUP_STEPS if s not in completed]
         if missing:
             raise VaultError(
                 code="setup_incomplete",
