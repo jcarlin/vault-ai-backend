@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     vault_jwt_algorithm: str = "HS256"
     vault_jwt_expiry_seconds: int = 3600
 
+    # Update mechanism (Epic 10)
+    vault_updates_dir: str = "/opt/vault/updates"
+    vault_gpg_public_key_path: str = "/opt/vault/config/vault-ai-signing-key.pub"
+    vault_version_file_path: str = "/opt/vault/data/version.json"
+
     model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 

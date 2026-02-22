@@ -27,6 +27,9 @@ from app.api.v1.quarantine import router as quarantine_router
 # Epic 11
 from app.api.v1.diagnostics import router as diagnostics_router
 
+# Epic 10
+from app.api.v1.updates import router as updates_router
+
 # Epic 14
 from app.api.v1.auth import router as auth_router
 
@@ -63,6 +66,9 @@ v1_router.include_router(quarantine_router, tags=["Quarantine"])
 
 # Epic 11
 v1_router.include_router(diagnostics_router, tags=["Diagnostics"])
+
+# Epic 10
+v1_router.include_router(updates_router, tags=["Updates"])
 
 # Epic 14
 v1_router.include_router(auth_router, tags=["Auth"])

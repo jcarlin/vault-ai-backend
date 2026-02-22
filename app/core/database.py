@@ -217,6 +217,35 @@ class QuarantineFile(Base):
     )
 
 
+# ── Epic 10: Update Jobs ─────────────────────────────────────────────────────
+
+
+class UpdateJob(Base):
+    __tablename__ = "update_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    # pending → verifying → backing_up → extracting → migrating →
+    # staging → loading_containers → restarting → health_checking →
+    # completed | failed | rolled_back
+    bundle_version: Mapped[str] = mapped_column(String(50))
+    from_version: Mapped[str] = mapped_column(String(50))
+    bundle_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    progress_pct: Mapped[int] = mapped_column(Integer, default=0)
+    current_step: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    steps_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    log_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changelog: Mapped[str | None] = mapped_column(Text, nullable=True)
+    components_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    backup_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+
+
 # ── Engine & Session ──────────────────────────────────────────────────────────
 
 engine = create_async_engine(settings.vault_db_url, echo=False)

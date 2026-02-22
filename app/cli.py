@@ -93,6 +93,25 @@ def revoke_key(
         raise typer.Exit(code=1)
 
 
+@cli_app.command("version")
+def show_version():
+    """Show current system version."""
+    async def _version():
+        await _ensure_db()
+        from sqlalchemy import select
+        from app.core.database import SystemConfig, async_session
+
+        async with async_session() as session:
+            result = await session.execute(
+                select(SystemConfig).where(SystemConfig.key == "update.current_version")
+            )
+            row = result.scalar_one_or_none()
+            return row.value if row else "1.0.0"
+
+    version = _run_async(_version())
+    console.print(f"Vault AI Backend v{version}")
+
+
 def main():
     cli_app()
 
