@@ -110,40 +110,55 @@ async def lifespan(app: FastAPI):
     )
     app.state.inference_backend = backend
 
-    # Initialize quarantine pipeline with all stages
-    from app.services.quarantine.directory import QuarantineDirectory
-    from app.services.quarantine.orchestrator import QuarantinePipeline
-    from app.services.quarantine.stages.file_integrity import FileIntegrityStage
-    from app.services.quarantine.stages.malware_scan import MalwareScanStage
-    from app.services.quarantine.stages.sanitization import SanitizationStage
-    from app.services.quarantine.clamav import ClamAVClient
-    from app.services.quarantine.yara_engine import YaraEngine
-    from app.services.quarantine.hash_blacklist import HashBlacklist
+    # Quarantine pipeline and update service are Cube-only features —
+    # skip in cloud mode to avoid blocking startup with heavy imports,
+    # synchronous I/O, and missing filesystem paths (ClamAV, YARA, etc.)
+    if settings.vault_deployment_mode != "cloud":
+        # Initialize quarantine pipeline with all stages
+        from app.services.quarantine.directory import QuarantineDirectory
+        from app.services.quarantine.orchestrator import QuarantinePipeline
+        from app.services.quarantine.stages.file_integrity import FileIntegrityStage
+        from app.services.quarantine.stages.malware_scan import MalwareScanStage
+        from app.services.quarantine.stages.sanitization import SanitizationStage
+        from app.services.quarantine.clamav import ClamAVClient
+        from app.services.quarantine.yara_engine import YaraEngine
+        from app.services.quarantine.hash_blacklist import HashBlacklist
 
-    quarantine_dir = QuarantineDirectory()
-    quarantine_dir.init_directories()
+        quarantine_dir = QuarantineDirectory()
+        quarantine_dir.init_directories()
 
-    # Stage 1: File Integrity (pure Python)
-    file_integrity = FileIntegrityStage()
+        # Stage 1: File Integrity (pure Python)
+        file_integrity = FileIntegrityStage()
 
-    # Stage 2: Malware Scanning (ClamAV + YARA + blacklist)
-    clamav_client = ClamAVClient(socket_path=settings.vault_clamav_socket)
-    yara_engine = YaraEngine(rules_dir=settings.vault_yara_rules_dir)
-    yara_engine.load_rules()
-    hash_blacklist = HashBlacklist(blacklist_path=settings.vault_blacklist_path)
-    hash_blacklist.load()
-    malware_scan = MalwareScanStage(
-        clamav_client=clamav_client,
-        yara_engine=yara_engine,
-        hash_blacklist=hash_blacklist,
-    )
+        # Stage 2: Malware Scanning (ClamAV + YARA + blacklist)
+        clamav_client = ClamAVClient(socket_path=settings.vault_clamav_socket)
+        yara_engine = YaraEngine(rules_dir=settings.vault_yara_rules_dir)
+        yara_engine.load_rules()
+        hash_blacklist = HashBlacklist(blacklist_path=settings.vault_blacklist_path)
+        hash_blacklist.load()
+        malware_scan = MalwareScanStage(
+            clamav_client=clamav_client,
+            yara_engine=yara_engine,
+            hash_blacklist=hash_blacklist,
+        )
 
-    # Stage 3: Sanitization (PDF, Office, images)
-    sanitization = SanitizationStage(sanitized_dir=quarantine_dir.sanitized)
+        # Stage 3: Sanitization (PDF, Office, images)
+        sanitization = SanitizationStage(sanitized_dir=quarantine_dir.sanitized)
 
-    quarantine_pipeline = QuarantinePipeline(directory=quarantine_dir)
-    quarantine_pipeline.set_stages([file_integrity, malware_scan, sanitization])
-    app.state.quarantine_pipeline = quarantine_pipeline
+        quarantine_pipeline = QuarantinePipeline(directory=quarantine_dir)
+        quarantine_pipeline.set_stages([file_integrity, malware_scan, sanitization])
+        app.state.quarantine_pipeline = quarantine_pipeline
+
+        # Initialize update service (Epic 10)
+        from app.services.update.directory import UpdateDirectory
+        from app.services.update.gpg import GPGVerifier
+        from app.services.update.service import UpdateService
+
+        update_dir = UpdateDirectory()
+        update_dir.init_directories()
+        gpg_verifier = GPGVerifier()
+        update_service = UpdateService(directory=update_dir, gpg_verifier=gpg_verifier)
+        app.state.update_service = update_service
 
     logger.info(
         "vault_backend_starting",

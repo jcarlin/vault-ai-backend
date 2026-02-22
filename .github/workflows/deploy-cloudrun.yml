@@ -60,8 +60,9 @@ jobs:
             VLLM_API_KEY=vault-vllm-api-key:latest
           flags: |
             --allow-unauthenticated
-            --memory=512Mi
-            --cpu=1
+            --memory=1Gi
+            --cpu=2
+            --startup-cpu-boost
             --min-instances=0
             --max-instances=3
             --port=8000
