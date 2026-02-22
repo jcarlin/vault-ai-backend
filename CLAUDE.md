@@ -12,13 +12,14 @@
 
 ## Current Scope: Epic 8 (Stage 3) — COMPLETE
 
-**63 API endpoints + auth middleware + audit logging + CLI + Docker + 234 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
+**64 API endpoints + auth middleware + audit logging + CLI + Docker + 239 tests.** Everything else in `PRD.md` is future scope. Do not build features from later stages unless explicitly told to.
 
 ### What's done
 - **Rev 1 (3 endpoints):** Chat streaming + non-streaming, models list, health check
 - **Rev 2 (28 new endpoints):** Conversations CRUD, training jobs lifecycle, admin/users/keys/config, system metrics, insights analytics, activity feed
 - **First-boot wizard (7 endpoints):** Setup status, network config, admin account + API key creation, TLS cert, model selection, system verification, setup completion with lockout
 - **Epic 8 (24 new endpoints):** Full API gateway — audit log query/export/stats, full config GET/PUT, TLS GET/POST, text completions, embeddings, model detail, conversation export, expanded health, inference stats, services list/restart, logs, model management (list/detail/load/unload/active/import/delete), WebSocket live metrics
+- **Epic 6 (1 new endpoint):** Prometheus /metrics endpoint exposing request counts, latency histograms, active requests, and model usage in Prometheus text format
 - API key auth middleware (Bearer token, SHA-256 hashed, SQLite storage)
 - Admin scope enforcement on all `/vault/admin/*` and admin-only model management endpoints
 - Request logging middleware (structured JSON via structlog + AuditLog table)
@@ -26,7 +27,7 @@
 - `vault-admin` CLI (create-key, list-keys, revoke-key)
 - Mock vLLM server for local dev without GPU (chat, completions, embeddings, models)
 - Docker Compose stack (gateway + mock-vllm + Caddy reverse proxy)
-- 234 tests (unit + integration), all passing
+- 239 tests (unit + integration), all passing
 - Frontend (vault-ai-frontend) wired to all 31 Rev 1+2 endpoints — chat streaming, conversations, admin, settings, insights all using real API calls
 
 ### What's next

@@ -13,7 +13,7 @@ from app.core.security import hash_api_key
 logger = structlog.get_logger()
 
 # Paths that skip authentication
-PUBLIC_PATHS = {"/vault/health", "/", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PATHS = {"/vault/health", "/", "/docs", "/openapi.json", "/redoc", "/metrics"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
