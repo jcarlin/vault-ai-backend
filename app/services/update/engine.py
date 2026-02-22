@@ -373,44 +373,34 @@ class UpdateEngine:
         if not manifest.components.get("migrations"):
             return "No migrations in this update (skipped)"
 
-        # Find migrations directory in extracted bundle
         content_dir = self._find_content_dir(staging_dir)
         migrations_dir = content_dir / "migrations"
 
         if not migrations_dir.exists():
             return "Migrations directory not found (skipped)"
 
-        # Copy migrations to the Alembic versions directory
-        alembic_dir = Path(settings.vault_updates_dir).parent / "backend" / "alembic" / "versions"
-        if alembic_dir.exists():
-            for migration_file in migrations_dir.glob("*.py"):
-                shutil.copy2(migration_file, alembic_dir / migration_file.name)
+        from app.core.migrations import _BACKEND_ROOT, run_upgrade_head
 
-            # Run alembic upgrade
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    "alembic", "upgrade", "head",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
-                if proc.returncode != 0:
-                    raise VaultError(
-                        code="migration_failed",
-                        message=f"Alembic migration failed: {stderr.decode()[:500]}",
-                        status=500,
-                    )
-                return "Database migrations applied"
-            except FileNotFoundError:
-                return "Alembic not available, migrations skipped"
-            except asyncio.TimeoutError:
-                raise VaultError(
-                    code="migration_timeout",
-                    message="Database migration timed out after 60s",
-                    status=500,
-                )
+        alembic_versions = _BACKEND_ROOT / "alembic" / "versions"
+        if not alembic_versions.exists():
+            raise VaultError(
+                code="migration_failed",
+                message="Alembic versions directory not found",
+                status=500,
+            )
 
-        return "Alembic directory not found (skipped)"
+        for migration_file in migrations_dir.glob("*.py"):
+            shutil.copy2(migration_file, alembic_versions / migration_file.name)
+
+        try:
+            await run_upgrade_head()
+            return "Database migrations applied"
+        except Exception as e:
+            raise VaultError(
+                code="migration_failed",
+                message=f"Alembic migration failed: {e}",
+                status=500,
+            )
 
     async def _step_apply_signatures(self, staging_dir: Path, manifest) -> str:
         """Apply ClamAV/YARA signature updates."""

@@ -43,7 +43,11 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    asyncio.run(run_async_migrations())
+    connectable = config.attributes.get("connection")
+    if connectable is not None:
+        do_run_migrations(connectable)  # sync connection from tests
+    else:
+        asyncio.run(run_async_migrations())  # normal async path
 
 
 if context.is_offline_mode():

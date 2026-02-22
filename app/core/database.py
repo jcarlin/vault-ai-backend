@@ -253,9 +253,10 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 
 async def init_db() -> None:
-    """Create all tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Ensure database schema is up to date via Alembic migrations."""
+    from app.core.migrations import ensure_db_migrated
+
+    await ensure_db_migrated()
 
 
 async def close_db() -> None:
