@@ -6,25 +6,25 @@ install:
 
 # Start backend pointed at Ollama (real local LLM)
 dev:
-	VLLM_BASE_URL=http://localhost:11434 uvicorn app.main:app --reload --port 8000
+	VLLM_BASE_URL=http://localhost:11434 uv run uvicorn app.main:app --reload --port 8000
 
 # Start backend pointed at Gemini (cloud mode, reads .env for keys)
 dev-cloud:
-	uvicorn app.main:app --reload --port 8000
+	uv run uvicorn app.main:app --reload --port 8000
 
 # Start backend pointed at mock vLLM (canned responses, no LLM needed)
 mock:
-	uvicorn tests.mocks.fake_vllm:app --port 8001 &
+	uv run uvicorn tests.mocks.fake_vllm:app --port 8001 &
 	sleep 1
-	VLLM_BASE_URL=http://localhost:8001 uvicorn app.main:app --reload --port 8000
+	VLLM_BASE_URL=http://localhost:8001 uv run uvicorn app.main:app --reload --port 8000
 
 # Run all tests
 test:
-	python -m pytest --tb=short -q
+	uv run python -m pytest --tb=short -q
 
 # Create an admin API key
 key:
-	python -m app.cli create-key --label "dev" --scope admin
+	uv run python -m app.cli create-key --label "dev" --scope admin
 
 # Quick smoke test — chat (requires API key as arg: make chat KEY=vault_sk_...)
 chat:

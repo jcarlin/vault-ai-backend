@@ -62,7 +62,7 @@ jobs:
             --allow-unauthenticated
             --memory=1Gi
             --cpu=2
-            --startup-cpu-boost
+            --cpu-boost
             --min-instances=0
             --max-instances=3
             --port=8000
