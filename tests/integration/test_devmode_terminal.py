@@ -5,6 +5,7 @@ import pytest
 
 class TestTerminalSessionLifecycle:
     async def test_start_terminal_returns_session(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.post("/vault/admin/devmode/terminal")
         assert response.status_code == 201
         data = response.json()
@@ -21,6 +22,7 @@ class TestTerminalSessionLifecycle:
         )
 
     async def test_stop_terminal(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         # Start
         start_resp = await auth_client.post("/vault/admin/devmode/terminal")
         session_id = start_resp.json()["session_id"]
@@ -59,6 +61,7 @@ class TestTerminalSessionLifecycle:
 
 class TestPythonSessionLifecycle:
     async def test_start_python_returns_session(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.post("/vault/admin/devmode/python")
         assert response.status_code == 201
         data = response.json()
@@ -75,6 +78,7 @@ class TestPythonSessionLifecycle:
         )
 
     async def test_stop_python(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         # Start
         start_resp = await auth_client.post("/vault/admin/devmode/python")
         session_id = start_resp.json()["session_id"]

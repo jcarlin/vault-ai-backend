@@ -1,6 +1,6 @@
 from fastapi import Request
 
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, VaultError
 from app.services.inference.base import InferenceBackend
 
 
@@ -30,3 +30,15 @@ def require_admin(request: Request) -> None:
     if scope == "admin":
         return
     raise AuthorizationError("This endpoint requires admin privileges.")
+
+
+async def require_devmode() -> None:
+    """Dependency that enforces developer mode is enabled."""
+    from app.services.devmode import is_devmode_enabled
+
+    if not await is_devmode_enabled():
+        raise VaultError(
+            code="devmode_disabled",
+            message="Developer mode is not enabled.",
+            status=403,
+        )

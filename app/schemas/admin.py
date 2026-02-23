@@ -121,6 +121,16 @@ class ModelConfigUpdate(BaseModel):
     default_system_prompt: str | None = None
 
 
+class DevModeConfigResponse(BaseModel):
+    enabled: bool
+    gpu_allocation: list[int]
+
+
+class DevModeConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    gpu_allocation: list[int] | None = None
+
+
 class FullConfigResponse(BaseModel):
     network: NetworkConfigResponse
     system: SystemSettingsResponse

@@ -57,6 +57,7 @@ class TestDevModeEnableDisable:
 
 class TestModelInspector:
     async def test_inspect_model_not_found(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.get(
             "/vault/admin/devmode/model/nonexistent-model/inspect"
         )
@@ -64,6 +65,7 @@ class TestModelInspector:
 
     async def test_inspect_model_with_config(self, auth_client, tmp_path):
         """Test model inspection with a real config.json file."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         from app.config import settings
 
         # Create a temporary model directory with config.json
@@ -190,3 +192,115 @@ class TestJupyterEndpoints:
             "/vault/admin/devmode/jupyter",
         )
         assert response.status_code == 401
+
+
+class TestDevModeEnforcement:
+    """Verify dev-tool endpoints return 403 when dev mode is disabled."""
+
+    async def test_terminal_start_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.post("/vault/admin/devmode/terminal")
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "devmode_disabled"
+
+    async def test_terminal_stop_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.request(
+            "DELETE", "/vault/admin/devmode/terminal", params={"session_id": "fake"}
+        )
+        assert resp.status_code == 403
+
+    async def test_python_start_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.post("/vault/admin/devmode/python")
+        assert resp.status_code == 403
+
+    async def test_python_stop_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.request(
+            "DELETE", "/vault/admin/devmode/python", params={"session_id": "fake"}
+        )
+        assert resp.status_code == 403
+
+    async def test_jupyter_start_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.post("/vault/admin/devmode/jupyter")
+        assert resp.status_code == 403
+
+    async def test_jupyter_stop_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.request("DELETE", "/vault/admin/devmode/jupyter")
+        assert resp.status_code == 403
+
+    async def test_model_inspect_blocked_when_disabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/disable")
+        resp = await auth_client.get(
+            "/vault/admin/devmode/model/some-model/inspect"
+        )
+        assert resp.status_code == 403
+
+    async def test_terminal_allowed_when_enabled(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
+        resp = await auth_client.post("/vault/admin/devmode/terminal")
+        assert resp.status_code == 201
+        # Clean up
+        sid = resp.json()["session_id"]
+        await auth_client.request(
+            "DELETE", "/vault/admin/devmode/terminal", params={"session_id": sid}
+        )
+
+    async def test_enable_disable_status_unguarded(self, auth_client):
+        """Enable, disable, and status endpoints work regardless of devmode state."""
+        # Disable first
+        await auth_client.post("/vault/admin/devmode/disable")
+        # All 3 state endpoints should still work
+        resp = await auth_client.get("/vault/admin/devmode/status")
+        assert resp.status_code == 200
+        resp = await auth_client.post("/vault/admin/devmode/enable", json={})
+        assert resp.status_code == 200
+        resp = await auth_client.post("/vault/admin/devmode/disable")
+        assert resp.status_code == 200
+
+
+class TestDevModeConfig:
+    """Test GET/PUT /vault/admin/config/devmode."""
+
+    async def test_get_default_config(self, auth_client):
+        resp = await auth_client.get("/vault/admin/config/devmode")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is False
+        assert data["gpu_allocation"] == []
+
+    async def test_update_config_enabled(self, auth_client):
+        resp = await auth_client.put(
+            "/vault/admin/config/devmode", json={"enabled": True}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] is True
+
+    async def test_update_config_gpu_allocation(self, auth_client):
+        resp = await auth_client.put(
+            "/vault/admin/config/devmode", json={"gpu_allocation": [0, 1]}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["gpu_allocation"] == [0, 1]
+
+    async def test_update_roundtrip(self, auth_client):
+        await auth_client.put(
+            "/vault/admin/config/devmode",
+            json={"enabled": True, "gpu_allocation": [0]},
+        )
+        resp = await auth_client.get("/vault/admin/config/devmode")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["enabled"] is True
+        assert data["gpu_allocation"] == [0]
+
+    async def test_config_requires_admin(self, anon_client):
+        resp = await anon_client.get("/vault/admin/config/devmode")
+        assert resp.status_code == 401
+        resp = await anon_client.put(
+            "/vault/admin/config/devmode", json={"enabled": True}
+        )
+        assert resp.status_code == 401

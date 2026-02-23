@@ -58,6 +58,11 @@ QUARANTINE_DEFAULTS = {
     "quarantine.strictness_level": "standard",
 }
 
+DEVMODE_DEFAULTS = {
+    "devmode.enabled": "false",
+    "devmode.gpu_allocation": "[]",
+}
+
 
 class AdminService:
     def __init__(self, session_factory=None):
@@ -517,6 +522,59 @@ class AdminService:
             await session.delete(mapping)
             await session.commit()
             return True
+
+    # ── DevMode Config ──────────────────────────────────────────────────────
+
+    async def get_devmode_config(self) -> dict:
+        import json as _json
+
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(SystemConfig).where(SystemConfig.key.startswith("devmode."))
+            )
+            rows = {r.key: r.value for r in result.scalars().all()}
+
+        if not rows:
+            await self._populate_defaults(DEVMODE_DEFAULTS)
+            rows = dict(DEVMODE_DEFAULTS)
+
+        gpu_raw = rows.get("devmode.gpu_allocation", "[]")
+        try:
+            gpu_allocation = _json.loads(gpu_raw)
+        except (_json.JSONDecodeError, ValueError):
+            gpu_allocation = []
+
+        return {
+            "enabled": rows.get("devmode.enabled", "false").lower() == "true",
+            "gpu_allocation": gpu_allocation,
+        }
+
+    async def update_devmode_config(self, **updates) -> dict:
+        import json as _json
+
+        async with self._session_factory() as session:
+            for field, value in updates.items():
+                if value is None:
+                    continue
+                key = f"devmode.{field}"
+                if isinstance(value, bool):
+                    stored_value = "true" if value else "false"
+                elif isinstance(value, list):
+                    stored_value = _json.dumps(value)
+                else:
+                    stored_value = str(value)
+
+                existing = await session.execute(
+                    select(SystemConfig).where(SystemConfig.key == key)
+                )
+                row = existing.scalar_one_or_none()
+                if row:
+                    row.value = stored_value
+                else:
+                    session.add(SystemConfig(key=key, value=stored_value))
+            await session.commit()
+
+        return await self.get_devmode_config()
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

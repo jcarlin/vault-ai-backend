@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from app.core.exceptions import NotFoundError, VaultError
 from app.dependencies import require_admin
 from app.schemas.admin import (
+    DevModeConfigResponse,
+    DevModeConfigUpdate,
     FullConfigResponse,
     FullConfigUpdate,
     KeyCreate,
@@ -396,3 +398,21 @@ async def delete_ldap_mapping(mapping_id: int) -> dict:
     service = AdminService()
     await service.delete_ldap_mapping(mapping_id)
     return {"status": "deleted"}
+
+
+# ── DevMode Config ────────────────────────────────────────────────────────
+
+
+@router.get("/vault/admin/config/devmode")
+async def get_devmode_config() -> DevModeConfigResponse:
+    service = AdminService()
+    config = await service.get_devmode_config()
+    return DevModeConfigResponse(**config)
+
+
+@router.put("/vault/admin/config/devmode")
+async def update_devmode_config(body: DevModeConfigUpdate) -> DevModeConfigResponse:
+    service = AdminService()
+    updates = body.model_dump(exclude_none=True)
+    config = await service.update_devmode_config(**updates)
+    return DevModeConfigResponse(**config)

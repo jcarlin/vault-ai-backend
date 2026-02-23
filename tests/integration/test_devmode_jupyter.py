@@ -15,6 +15,7 @@ class TestJupyterEndpoints:
 
     async def test_start_returns_error_without_docker(self, auth_client):
         """Without Docker installed, launch should return an error status."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.post("/vault/admin/devmode/jupyter")
         assert response.status_code == 201
         data = response.json()
@@ -24,6 +25,7 @@ class TestJupyterEndpoints:
 
     async def test_stop_without_running(self, auth_client):
         """Stopping when nothing is running should return stopped or error (no Docker)."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.request("DELETE", "/vault/admin/devmode/jupyter")
         assert response.status_code == 200
         data = response.json()
@@ -34,6 +36,7 @@ class TestJupyterEndpoints:
 class TestJupyterManagerMocked:
     async def test_launch_with_mock_docker(self, auth_client):
         """Test launch with a mocked Docker client."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         mock_client = MagicMock()
 
         # Container doesn't exist yet (raises NotFound)
@@ -55,6 +58,7 @@ class TestJupyterManagerMocked:
 
     async def test_stop_with_mock_docker(self, auth_client):
         """Test stop with a mocked Docker client."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         mock_client = MagicMock()
         mock_container = MagicMock()
         mock_client.containers.get.return_value = mock_container
@@ -69,6 +73,7 @@ class TestJupyterManagerMocked:
 
     async def test_launch_already_running(self, auth_client):
         """If container is already running, return its info."""
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         mock_client = MagicMock()
         mock_container = MagicMock()
         mock_container.status = "running"

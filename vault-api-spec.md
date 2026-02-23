@@ -398,22 +398,28 @@ Job-based API for running evaluation suites against models and adapters.
 
 Unlocks direct hardware access for power users (research labs, ML engineers). Admin-controlled toggle with explicit resource allocation.
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/vault/admin/devmode/enable` | Enable developer mode with GPU allocation (e.g., reserve GPU 3 for dev). Shows warnings. | Admin |
-| POST | `/vault/admin/devmode/disable` | Disable, reclaim all GPUs for managed inference. Terminates active sessions. | Admin |
-| GET | `/vault/admin/devmode/status` | State: enabled/disabled, GPU allocation map, active sessions, resource usage. | Admin |
-| POST | `/vault/admin/devmode/jupyter` | Launch JupyterHub container on allocated GPU(s). Returns URL and access token. | Admin |
-| DELETE | `/vault/admin/devmode/jupyter` | Shut down JupyterHub container. | Admin |
-| GET | `/vault/admin/devmode/model/{model_id}/inspect` | Model architecture details: layer count, parameter count, attention heads, context window, quantization info (method, bits, group size). | Admin |
-| POST | `/vault/admin/devmode/python` | Launch Python console (IPython kernel). Returns WebSocket URL and session token. | Admin |
-| DELETE | `/vault/admin/devmode/python` | Shut down Python console session. | Admin |
+| Method | Endpoint | Description | Auth | Status |
+|--------|----------|-------------|------|--------|
+| POST | `/vault/admin/devmode/enable` | Enable developer mode with GPU allocation (e.g., reserve GPU 3 for dev). Shows warnings. | Admin | ✅ Epic 19 |
+| POST | `/vault/admin/devmode/disable` | Disable, reclaim all GPUs for managed inference. Terminates active sessions. | Admin | ✅ Epic 19 |
+| GET | `/vault/admin/devmode/status` | State: enabled/disabled, GPU allocation map, active sessions, resource usage. | Admin | ✅ Epic 19 |
+| POST | `/vault/admin/devmode/jupyter` | Launch JupyterHub container on allocated GPU(s). Returns URL and access token. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| DELETE | `/vault/admin/devmode/jupyter` | Shut down JupyterHub container. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| GET | `/vault/admin/devmode/model/{model_id}/inspect` | Model architecture details: layer count, parameter count, attention heads, context window, quantization info (method, bits, group size). **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| POST | `/vault/admin/devmode/python` | Launch Python console (IPython kernel). Returns WebSocket URL and session token. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| DELETE | `/vault/admin/devmode/python` | Shut down Python console session. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| POST | `/vault/admin/devmode/terminal` | Launch terminal PTY session. Returns WebSocket URL and session ID. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| DELETE | `/vault/admin/devmode/terminal` | Terminate terminal session. **Returns 403 if dev mode disabled.** | Admin | ✅ Epic 19 |
+| GET | `/vault/admin/config/devmode` | Get developer mode config (enabled state, GPU allocation). | Admin | ✅ Epic 18 |
+| PUT | `/vault/admin/config/devmode` | Update developer mode config. | Admin | ✅ Epic 18 |
 
 ### Notes
 
 - Dev mode is a conscious trade-off: raw access vs. managed stability. Enable flow includes explicit acknowledgment.
+- **Mode enforcement (Epic 18):** The 7 dev-tool endpoints (terminal start/stop, python start/stop, jupyter start/stop, model inspect) return `403 devmode_disabled` when developer mode is not enabled. The 3 state endpoints (enable, disable, status) are always accessible so admins can toggle the mode.
+- **Config endpoints (Epic 18):** `GET/PUT /vault/admin/config/devmode` follow the admin config pattern (like network, system, LDAP, quarantine). They complement the lifecycle endpoints — config for persistent settings, enable/disable for session state.
 - JupyterHub runs as isolated container with access only to allocated GPU(s).
-- Sessions still logged to audit trail.
+- Terminal and Python console commands are not recorded in the audit trail. Sessions are in-memory only.
 
 ---
 
@@ -434,7 +440,7 @@ Unlocks direct hardware access for power users (research labs, ML engineers). Ad
 | Quarantine & Data Security | 9 | 9 | MVP* | ✅ Epic 9 (3-stage pipeline: integrity, malware, sanitization) |
 | Documents & RAG | 8 | 0 | Phase 2 | |
 | Evaluation & Benchmarking | 5 | 0 | Phase 2 | |
-| Developer Mode | 8 | 0 | Phase 3 | + model inspect, Python console launch/stop |
+| Developer Mode | 12 | 12 | Phase 3 | ✅ Epic 19 (11 endpoints) + Epic 18 (2 config + enforcement) |
 | **Total** | **124** | **72** | | |
 
 *\*Quarantine Stages 1-3 are MVP. Stage 4 (AI-specific checks) is Phase 2.*

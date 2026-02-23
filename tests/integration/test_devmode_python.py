@@ -9,6 +9,7 @@ class TestPythonConsoleEndpoints:
         assert response.status_code == 401
 
     async def test_start_returns_session(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         response = await auth_client.post("/vault/admin/devmode/python")
         assert response.status_code == 201
         data = response.json()
@@ -23,6 +24,7 @@ class TestPythonConsoleEndpoints:
         )
 
     async def test_stop_returns_terminated(self, auth_client):
+        await auth_client.post("/vault/admin/devmode/enable", json={})
         start_resp = await auth_client.post("/vault/admin/devmode/python")
         sid = start_resp.json()["session_id"]
 

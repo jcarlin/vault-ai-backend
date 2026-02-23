@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from app.core.exceptions import NotFoundError, VaultError
-from app.dependencies import require_admin
+from app.dependencies import require_admin, require_devmode
 from app.schemas.devmode import (
     DevModeEnableRequest,
     DevModeStatusResponse,
@@ -41,7 +41,10 @@ async def devmode_status() -> DevModeStatusResponse:
 # ── Model Inspector ──────────────────────────────────────────────────────────
 
 
-@router.get("/vault/admin/devmode/model/{model_id}/inspect")
+@router.get(
+    "/vault/admin/devmode/model/{model_id}/inspect",
+    dependencies=[Depends(require_devmode)],
+)
 async def inspect_model(model_id: str) -> ModelInspection:
     """Inspect model architecture, quantization, and files on disk."""
     return await devmode_service.inspect_model(model_id)
@@ -50,7 +53,11 @@ async def inspect_model(model_id: str) -> ModelInspection:
 # ── Terminal Sessions ────────────────────────────────────────────────────────
 
 
-@router.post("/vault/admin/devmode/terminal", status_code=201)
+@router.post(
+    "/vault/admin/devmode/terminal",
+    status_code=201,
+    dependencies=[Depends(require_devmode)],
+)
 async def start_terminal() -> SessionResponse:
     """Start a new terminal PTY session."""
     from app.services.devmode_terminal import create_terminal_session
@@ -71,7 +78,10 @@ async def start_terminal() -> SessionResponse:
     )
 
 
-@router.delete("/vault/admin/devmode/terminal")
+@router.delete(
+    "/vault/admin/devmode/terminal",
+    dependencies=[Depends(require_devmode)],
+)
 async def stop_terminal(session_id: str) -> dict:
     """Terminate a terminal session."""
     from app.services.devmode_terminal import destroy_terminal_session
@@ -84,7 +94,11 @@ async def stop_terminal(session_id: str) -> dict:
 # ── Python Console Sessions ─────────────────────────────────────────────────
 
 
-@router.post("/vault/admin/devmode/python", status_code=201)
+@router.post(
+    "/vault/admin/devmode/python",
+    status_code=201,
+    dependencies=[Depends(require_devmode)],
+)
 async def start_python() -> SessionResponse:
     """Start a new Python/IPython PTY session."""
     from app.services.devmode_python import create_python_session
@@ -105,7 +119,10 @@ async def start_python() -> SessionResponse:
     )
 
 
-@router.delete("/vault/admin/devmode/python")
+@router.delete(
+    "/vault/admin/devmode/python",
+    dependencies=[Depends(require_devmode)],
+)
 async def stop_python(session_id: str) -> dict:
     """Terminate a Python console session."""
     from app.services.devmode_python import destroy_python_session
@@ -118,7 +135,11 @@ async def stop_python(session_id: str) -> dict:
 # ── Jupyter Notebooks ────────────────────────────────────────────────────────
 
 
-@router.post("/vault/admin/devmode/jupyter", status_code=201)
+@router.post(
+    "/vault/admin/devmode/jupyter",
+    status_code=201,
+    dependencies=[Depends(require_devmode)],
+)
 async def start_jupyter() -> JupyterResponse:
     """Launch Jupyter notebook container."""
     from app.services.devmode_jupyter import JupyterManager
@@ -137,7 +158,10 @@ async def start_jupyter() -> JupyterResponse:
     )
 
 
-@router.delete("/vault/admin/devmode/jupyter")
+@router.delete(
+    "/vault/admin/devmode/jupyter",
+    dependencies=[Depends(require_devmode)],
+)
 async def stop_jupyter() -> JupyterResponse:
     """Stop and remove Jupyter container."""
     from app.services.devmode_jupyter import JupyterManager
