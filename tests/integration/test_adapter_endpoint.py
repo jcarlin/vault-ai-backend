@@ -90,6 +90,39 @@ class TestAdapterEndpoints:
         assert resp.status_code == 409
 
     @pytest.mark.asyncio
+    async def test_activate_adapter(self, auth_client, adapter_fixture):
+        adapter_id = await adapter_fixture("to-activate", status="ready")
+
+        resp = await auth_client.post(f"/vault/training/adapters/{adapter_id}/activate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "active"
+
+    @pytest.mark.asyncio
+    async def test_deactivate_adapter(self, auth_client, adapter_fixture):
+        adapter_id = await adapter_fixture("to-deactivate", status="active")
+
+        resp = await auth_client.post(f"/vault/training/adapters/{adapter_id}/deactivate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ready"
+
+    @pytest.mark.asyncio
+    async def test_activate_not_found(self, auth_client):
+        resp = await auth_client.post("/vault/training/adapters/nonexistent/activate")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_deactivate_not_found(self, auth_client):
+        resp = await auth_client.post("/vault/training/adapters/nonexistent/deactivate")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_not_found(self, auth_client):
+        resp = await auth_client.delete("/vault/training/adapters/nonexistent")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
     async def test_gpu_allocation_endpoint(self, auth_client):
         resp = await auth_client.get("/vault/training/gpu-allocation")
         assert resp.status_code == 200
