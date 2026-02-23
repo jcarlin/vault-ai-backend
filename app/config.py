@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     vault_gpg_public_key_path: str = "/opt/vault/config/vault-ai-signing-key.pub"
     vault_version_file_path: str = "/opt/vault/data/version.json"
 
+    # Developer mode (Epic 19)
+    vault_devmode_python_venv: str = "/opt/vault/venv"
+    vault_devmode_terminal_shell: str = "/bin/bash"
+    vault_devmode_jupyter_image: str = "jupyter/scipy-notebook:latest"
+    vault_devmode_jupyter_port: int = 8888
+
     model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 

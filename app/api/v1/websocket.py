@@ -1,4 +1,5 @@
 import asyncio
+import json as _json
 import platform
 import sys
 from datetime import datetime, timezone
@@ -213,3 +214,105 @@ async def live_logs_ws(
                 await proc.wait()
             except ProcessLookupError:
                 pass
+
+
+# ── PTY WebSocket bridge (shared by terminal + python) ──────────────────────
+
+
+async def _pty_ws_bridge(
+    websocket: WebSocket,
+    token: str,
+    session_id: str,
+    get_session_fn,
+    label: str,
+):
+    """Generic PTY ↔ WebSocket bridge. Used by /ws/terminal and /ws/python."""
+    auth = await _validate_ws_token(token)
+    if auth is None:
+        await websocket.close(code=4001, reason="Invalid or missing API key")
+        return
+    if auth["scope"] != "admin":
+        await websocket.close(code=4003, reason="Admin scope required")
+        return
+
+    pty_session = get_session_fn(session_id)
+    if pty_session is None:
+        await websocket.close(code=4004, reason=f"{label} session not found: {session_id}")
+        return
+
+    await websocket.accept()
+
+    async def read_pty_and_send():
+        """Read from PTY and send to WebSocket."""
+        while pty_session.is_alive:
+            data = await pty_session.read()
+            if data:
+                await websocket.send_bytes(data)
+            else:
+                await asyncio.sleep(0.02)
+
+    async def receive_and_write_pty():
+        """Receive from WebSocket and write to PTY."""
+        try:
+            while True:
+                message = await websocket.receive()
+                if message.get("type") == "websocket.disconnect":
+                    break
+                if "bytes" in message and message["bytes"]:
+                    pty_session.write(message["bytes"])
+                elif "text" in message and message["text"]:
+                    text = message["text"]
+                    # Check for JSON control messages (resize)
+                    try:
+                        msg = _json.loads(text)
+                        if msg.get("type") == "resize":
+                            pty_session.resize(msg.get("cols", 80), msg.get("rows", 24))
+                            continue
+                    except (ValueError, _json.JSONDecodeError):
+                        pass
+                    # Regular text input
+                    pty_session.write(text.encode("utf-8"))
+        except WebSocketDisconnect:
+            pass
+
+    try:
+        done, pending = await asyncio.wait(
+            [
+                asyncio.create_task(read_pty_and_send()),
+                asyncio.create_task(receive_and_write_pty()),
+            ],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+@router.websocket("/ws/terminal")
+async def terminal_ws(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+    session: str = Query(default=""),
+):
+    """WebSocket bridge to a terminal PTY session. Admin-only."""
+    from app.services.devmode_terminal import get_terminal_session
+
+    await _pty_ws_bridge(websocket, token, session, get_terminal_session, "Terminal")
+
+
+@router.websocket("/ws/python")
+async def python_ws(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+    session: str = Query(default=""),
+):
+    """WebSocket bridge to a Python/IPython PTY session. Admin-only."""
+    from app.services.devmode_python import get_python_session
+
+    await _pty_ws_bridge(websocket, token, session, get_python_session, "Python")
