@@ -23,10 +23,13 @@ async def health_check(
     status = "ok" if vllm_ok else "degraded"
     vllm_status = "connected" if vllm_ok else "disconnected"
 
+    from app.services.uptime import get_os_uptime_seconds
+
     return HealthResponse(
         status=status,
         vllm_status=vllm_status,
         gpu_count=len(gpus),
         gpus=gpus,
         uptime_seconds=round(time.monotonic() - _start_time, 1),
+        os_uptime_seconds=get_os_uptime_seconds(),
     )

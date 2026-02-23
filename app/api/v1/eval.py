@@ -29,15 +29,26 @@ def _get_service() -> EvalService:
     return EvalService(session_factory=db_module.async_session)
 
 
-def _resolve_dataset_path(dataset_id: str) -> tuple[str, str]:
+async def _resolve_dataset_path(dataset_id: str) -> tuple[str, str]:
     """Resolve dataset ID to filesystem path and type.
 
+    Checks in order: builtin eval datasets, dataset registry (UUID), custom path.
     Returns (path, dataset_type).
     """
     datasets_dir = getattr(settings, "vault_eval_datasets_dir", "data/eval-datasets")
     builtin_path = Path(datasets_dir) / f"{dataset_id}.jsonl"
     if builtin_path.exists():
         return str(builtin_path), "builtin"
+
+    # Try dataset registry lookup (Epic 22)
+    try:
+        from app.services.dataset.dataset_service import DatasetService
+        ds_service = DatasetService(session_factory=db_module.async_session)
+        resolved = await ds_service.resolve_dataset_path(dataset_id)
+        if resolved != dataset_id:
+            return resolved, "registry"
+    except Exception:
+        pass
 
     # Try as a direct path for custom datasets
     custom_path = Path(dataset_id)
@@ -57,7 +68,7 @@ async def create_eval_job(data: EvalJobCreate, request: Request):
     service = _get_service()
 
     # Validate dataset exists
-    dataset_path, dataset_type = _resolve_dataset_path(data.dataset_id)
+    dataset_path, dataset_type = await _resolve_dataset_path(data.dataset_id)
 
     job = await service.create_job(data)
 
@@ -175,7 +186,7 @@ async def quick_eval(data: QuickEvalRequest, request: Request):
 
 @router.get("/vault/eval/datasets", response_model=EvalDatasetList)
 async def list_eval_datasets():
-    """List available eval datasets (builtin + custom)."""
+    """List available eval datasets (builtin from manifest + eval datasets from registry)."""
     datasets_dir = getattr(settings, "vault_eval_datasets_dir", "data/eval-datasets")
     manifest_path = Path(datasets_dir) / "manifest.json"
 
@@ -187,5 +198,23 @@ async def list_eval_datasets():
                 datasets.append(EvalDatasetInfo(**entry))
         except (json.JSONDecodeError, Exception):
             pass
+
+    # Also include eval-type datasets from the dataset registry (Epic 22)
+    try:
+        from app.services.dataset.dataset_service import DatasetService
+        ds_service = DatasetService(session_factory=db_module.async_session)
+        registry_result = await ds_service.list_by_type("eval")
+        seen_ids = {d.id for d in datasets}
+        for ds in registry_result.datasets:
+            if ds.id not in seen_ids:
+                datasets.append(EvalDatasetInfo(
+                    id=ds.id,
+                    name=ds.name,
+                    description=ds.description or "",
+                    record_count=ds.record_count,
+                    type="registry",
+                ))
+    except Exception:
+        pass
 
     return EvalDatasetList(datasets=datasets, total=len(datasets))

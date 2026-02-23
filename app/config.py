@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     vault_training_gpu_index: int = 1
     vault_training_max_concurrent: int = 1
 
+    # Datasets (Epic 22)
+    vault_datasets_dir: str = "/opt/vault/data/datasets"
+    vault_datasets_scan_patterns: str = "*.jsonl,*.csv,*.parquet,*.txt"
+
     # Evaluation & benchmarking (Epic 17)
     vault_eval_datasets_dir: str = "data/eval-datasets"
     vault_eval_status_dir: str = "/tmp/vault-eval"

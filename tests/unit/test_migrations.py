@@ -31,7 +31,7 @@ class TestMigrationChain:
     """Test Alembic migration files produce the correct schema."""
 
     def test_upgrade_to_head_creates_all_tables(self, tmp_path):
-        """All 13 app tables + alembic_version are created at head."""
+        """All 16 app tables + alembic_version are created at head."""
         engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
         with engine.begin() as conn:
             command.upgrade(_test_cfg(conn), "head")
@@ -43,7 +43,9 @@ class TestMigrationChain:
             "users", "api_keys", "conversations", "messages",
             "training_jobs", "audit_log", "system_config",
             "ldap_group_mappings", "quarantine_jobs", "quarantine_files",
-            "update_jobs", "adapters", "eval_jobs", "alembic_version",
+            "update_jobs", "adapters", "eval_jobs",
+            "data_sources", "datasets", "uptime_events",
+            "alembic_version",
         }
         assert tables == expected
         engine.dispose()
@@ -63,8 +65,8 @@ class TestMigrationChain:
         assert tables <= {"alembic_version"}
         engine.dispose()
 
-    def test_head_revision_is_005(self, tmp_path):
-        """Current migration head is revision 005."""
+    def test_head_revision_is_007(self, tmp_path):
+        """Current migration head is revision 007."""
         engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
         with engine.begin() as conn:
             command.upgrade(_test_cfg(conn), "head")
@@ -73,7 +75,7 @@ class TestMigrationChain:
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
 
         assert row is not None
-        assert row[0] == "005"
+        assert row[0] == "007"
         engine.dispose()
 
     def test_migration_schema_matches_create_all(self, tmp_path):
@@ -139,7 +141,7 @@ class TestEnsureDbMigrated:
             assert "users" in tables
             assert "alembic_version" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "005"
+            assert row[0] == "007"
         sync_engine.dispose()
         await test_engine.dispose()
 
@@ -174,13 +176,13 @@ class TestEnsureDbMigrated:
             assert "alembic_version" in tables
             assert "api_keys" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "005"
+            assert row[0] == "007"
         sync_engine.dispose()
         await test_engine.dispose()
 
     @pytest.mark.asyncio
     async def test_alembic_tracked_db_gets_upgraded(self, tmp_path):
-        """Scenario 3: DB at revision 002 -> upgrade to head (005)."""
+        """Scenario 3: DB at revision 002 -> upgrade to head (006)."""
         db_path = tmp_path / "tracked.db"
 
         # Create DB at revision 002 via connection injection
@@ -205,13 +207,16 @@ class TestEnsureDbMigrated:
         finally:
             settings.vault_db_url = original_url
 
-        # Verify: upgraded to head with adapters + eval_jobs tables
+        # Verify: upgraded to head with adapters + eval_jobs + datasets + uptime_events tables
         sync_engine = create_engine(f"sqlite:///{db_path}")
         with sync_engine.begin() as conn:
             tables = set(inspect(conn).get_table_names())
             assert "adapters" in tables
             assert "eval_jobs" in tables
+            assert "data_sources" in tables
+            assert "datasets" in tables
+            assert "uptime_events" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "005"
+            assert row[0] == "007"
         sync_engine.dispose()
         await test_engine.dispose()

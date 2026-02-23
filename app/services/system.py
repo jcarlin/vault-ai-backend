@@ -29,6 +29,8 @@ async def get_system_resources() -> SystemResources:
             except Exception:
                 pass
 
+        from app.services.uptime import get_os_uptime_seconds
+
         return SystemResources(
             cpu_usage_pct=cpu_pct,
             cpu_count=psutil.cpu_count(),
@@ -41,6 +43,7 @@ async def get_system_resources() -> SystemResources:
             network_in_bytes=net.bytes_recv,
             network_out_bytes=net.bytes_sent,
             temperature_celsius=cpu_temp,
+            os_uptime_seconds=get_os_uptime_seconds(),
         )
     except Exception as e:
         logger.debug("system_metrics_unavailable", reason=str(e))

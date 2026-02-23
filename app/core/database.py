@@ -302,6 +302,73 @@ class UpdateJob(Base):
     )
 
 
+# ── Epic 22: Datasets ─────────────────────────────────────────────────────────
+
+
+class DataSource(Base):
+    __tablename__ = "data_sources"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    source_type: Mapped[str] = mapped_column(String(20))  # local/s3/smb/nfs
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_scanned_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Dataset(Base):
+    __tablename__ = "datasets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dataset_type: Mapped[str] = mapped_column(String(20))  # training/eval/document/other
+    format: Mapped[str] = mapped_column(String(50))  # jsonl/csv/parquet/txt/pdf/mixed
+    status: Mapped[str] = mapped_column(String(20), default="discovered")
+    source_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("data_sources.id"), nullable=True
+    )
+    source_path: Mapped[str] = mapped_column(String(2000))
+    file_size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    record_count: Mapped[int] = mapped_column(Integer, default=0)
+    tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quarantine_job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("quarantine_jobs.id"), nullable=True
+    )
+    validation_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    registered_by: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ── Uptime Events ─────────────────────────────────────────────────────────────
+
+
+class UptimeEvent(Base):
+    __tablename__ = "uptime_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    service_name: Mapped[str] = mapped_column(String(100), index=True)
+    event_type: Mapped[str] = mapped_column(String(20))  # "up" or "down"
+    timestamp: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), index=True
+    )
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 # ── Engine & Session ──────────────────────────────────────────────────────────
 
 _engine_kwargs: dict = {"echo": False}

@@ -72,7 +72,11 @@ class ServiceManager:
                     ts_str = line.split("=", 1)[1].strip()
                     if ts_str:
                         try:
-                            uptime = 0
+                            from datetime import datetime as _dt
+                            enter_time = _dt.strptime(ts_str, "%a %Y-%m-%d %H:%M:%S %Z")
+                            uptime = int(
+                                (datetime.now(timezone.utc) - enter_time.replace(tzinfo=timezone.utc)).total_seconds()
+                            )
                         except Exception:
                             pass
 

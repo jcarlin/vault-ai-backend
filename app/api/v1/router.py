@@ -42,6 +42,13 @@ from app.api.v1.devmode import router as devmode_router
 # Epic 17
 from app.api.v1.eval import router as eval_router
 
+# Epic 22
+from app.api.v1.datasources import router as datasources_router
+from app.api.v1.datasets import router as datasets_router
+
+# Uptime
+from app.api.v1.uptime import router as uptime_router
+
 v1_router = APIRouter()
 
 # Rev 1
@@ -90,3 +97,10 @@ v1_router.include_router(devmode_router, tags=["DevMode"])
 
 # Epic 17
 v1_router.include_router(eval_router, tags=["Evaluation"])
+
+# Epic 22
+v1_router.include_router(datasources_router, tags=["Data Sources"])
+v1_router.include_router(datasets_router, tags=["Datasets"])
+
+# Uptime
+v1_router.include_router(uptime_router, tags=["Uptime"])

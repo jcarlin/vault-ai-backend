@@ -167,6 +167,16 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("update_service_init_skipped", reason=str(exc))
 
+        # Initialize uptime monitor
+        try:
+            from app.services.uptime_monitor import UptimeMonitor
+
+            uptime_monitor = UptimeMonitor(session_factory=db_module.async_session)
+            await uptime_monitor.start()
+            app.state.uptime_monitor = uptime_monitor
+        except Exception as exc:
+            logger.warning("uptime_monitor_init_skipped", reason=str(exc))
+
         # Initialize training services (Epic 16)
         try:
             from app.services.training.scheduler import GPUScheduler
@@ -199,6 +209,43 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("eval_services_init_skipped", reason=str(exc))
 
+    # Seed eval manifest datasets into dataset registry (Epic 22)
+    try:
+        import json as _json
+        from app.services.dataset.dataset_service import DatasetService
+        from app.core.database import Dataset
+
+        manifest_path = Path(settings.vault_eval_datasets_dir) / "manifest.json"
+        if manifest_path.exists():
+            manifest = _json.loads(manifest_path.read_text())
+            ds_service = DatasetService()
+            for entry in manifest.get("datasets", []):
+                ds_id = entry.get("id", "")
+                ds_path = str(Path(settings.vault_eval_datasets_dir) / f"{ds_id}.jsonl")
+                async with async_session() as session:
+                    from sqlalchemy import select
+                    existing = await session.execute(
+                        select(Dataset).where(Dataset.source_path == ds_path)
+                    )
+                    if existing.scalar_one_or_none() is None:
+                        import uuid as _uuid
+                        row = Dataset(
+                            id=str(_uuid.uuid4()),
+                            name=entry.get("name", ds_id),
+                            description=entry.get("description", ""),
+                            dataset_type="eval",
+                            format="jsonl",
+                            status="registered",
+                            source_path=ds_path,
+                            record_count=entry.get("record_count", 0),
+                            registered_by="seed",
+                        )
+                        session.add(row)
+                        await session.commit()
+            logger.info("eval_datasets_seeded")
+    except Exception as exc:
+        logger.debug("eval_dataset_seed_skipped", reason=str(exc))
+
     logger.info(
         "vault_backend_starting",
         vllm_url=settings.vllm_base_url,
@@ -206,6 +253,11 @@ async def lifespan(app: FastAPI):
         deployment_mode=settings.vault_deployment_mode,
     )
     yield
+
+    # Stop uptime monitor
+    uptime_monitor = getattr(app.state, "uptime_monitor", None)
+    if uptime_monitor:
+        await uptime_monitor.stop()
 
     await backend.close()
     await close_db()

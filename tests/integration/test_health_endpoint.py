@@ -33,3 +33,10 @@ class TestHealthEndpoint:
         assert "uptime_seconds" in data
         assert "version" in data
         assert data["version"] == "0.1.0"
+
+    async def test_health_includes_os_uptime(self, anon_client):
+        """GET /vault/health includes os_uptime_seconds field."""
+        response = await anon_client.get("/vault/health")
+        data = response.json()
+        assert "os_uptime_seconds" in data
+        assert isinstance(data["os_uptime_seconds"], (int, float))

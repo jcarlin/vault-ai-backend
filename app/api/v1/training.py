@@ -40,6 +40,15 @@ async def create_training_job(data: TrainingJobCreate, request: Request):
     """
     service = _get_service()
 
+    # Resolve dataset path through registry if it's a UUID (Epic 22)
+    dataset_path = data.dataset
+    try:
+        from app.services.dataset.dataset_service import DatasetService
+        ds_service = DatasetService(session_factory=db_module.async_session)
+        dataset_path = await ds_service.resolve_dataset_path(data.dataset)
+    except Exception:
+        pass
+
     # Create the DB record first
     job = await service.create_job(data)
 
@@ -62,7 +71,7 @@ async def create_training_job(data: TrainingJobCreate, request: Request):
             run_config = TrainingRunConfig(
                 job_id=job.id,
                 base_model_path=base_model_path,
-                dataset_path=data.dataset,
+                dataset_path=dataset_path,
                 output_dir=str(Path(settings.vault_adapters_dir) / job.id),
                 status_dir=status_dir,
                 adapter_type=data.adapter_type,

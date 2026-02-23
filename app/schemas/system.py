@@ -13,6 +13,7 @@ class SystemResources(BaseModel):
     network_in_bytes: int
     network_out_bytes: int
     temperature_celsius: float | None = None
+    os_uptime_seconds: float | None = None
 
 
 class GpuDetail(BaseModel):

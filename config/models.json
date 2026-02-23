@@ -21,6 +21,30 @@
       "description": "Fast model for simple tasks. Lower capability but 4x faster.",
       "path": "/opt/vault/models/llama-3.3-8b-q4",
       "type": "chat"
+    },
+    {
+      "id": "gemini-2.0-flash",
+      "name": "Gemini 2.0 Flash",
+      "parameters": "cloud",
+      "context_window": 1048576,
+      "description": "Google Gemini 2.0 Flash — fast, cloud-hosted model for demos and development.",
+      "type": "chat"
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "name": "Gemini 2.5 Flash",
+      "parameters": "cloud",
+      "context_window": 1048576,
+      "description": "Google Gemini 2.5 Flash — latest generation, cloud-hosted.",
+      "type": "chat"
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "parameters": "cloud",
+      "context_window": 1048576,
+      "description": "Google Gemini 2.5 Pro — highest capability cloud model.",
+      "type": "chat"
     }
   ]
 }

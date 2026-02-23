@@ -68,6 +68,15 @@ async def test_system_resources_returns_valid_data(auth_client_system):
 
 
 @pytest.mark.asyncio
+async def test_system_resources_includes_os_uptime(auth_client_system):
+    resp = await auth_client_system.get("/vault/system/resources")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "os_uptime_seconds" in data
+    assert isinstance(data["os_uptime_seconds"], (int, float, type(None)))
+
+
+@pytest.mark.asyncio
 async def test_system_resources_requires_auth(anon_client_system):
     resp = await anon_client_system.get("/vault/system/resources")
     assert resp.status_code == 401

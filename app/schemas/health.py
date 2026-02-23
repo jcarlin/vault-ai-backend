@@ -15,4 +15,5 @@ class HealthResponse(BaseModel):
     gpu_count: int = 0
     gpus: list[GpuInfo] = []
     uptime_seconds: float = 0.0
+    os_uptime_seconds: float | None = None
     version: str = "0.1.0"
