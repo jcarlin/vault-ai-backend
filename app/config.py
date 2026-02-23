@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     vault_training_gpu_index: int = 1
     vault_training_max_concurrent: int = 1
 
+    # Evaluation & benchmarking (Epic 17)
+    vault_eval_datasets_dir: str = "data/eval-datasets"
+    vault_eval_status_dir: str = "/tmp/vault-eval"
+
     model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -31,7 +31,7 @@ class TestMigrationChain:
     """Test Alembic migration files produce the correct schema."""
 
     def test_upgrade_to_head_creates_all_tables(self, tmp_path):
-        """All 12 app tables + alembic_version are created at head."""
+        """All 13 app tables + alembic_version are created at head."""
         engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
         with engine.begin() as conn:
             command.upgrade(_test_cfg(conn), "head")
@@ -43,7 +43,7 @@ class TestMigrationChain:
             "users", "api_keys", "conversations", "messages",
             "training_jobs", "audit_log", "system_config",
             "ldap_group_mappings", "quarantine_jobs", "quarantine_files",
-            "update_jobs", "adapters", "alembic_version",
+            "update_jobs", "adapters", "eval_jobs", "alembic_version",
         }
         assert tables == expected
         engine.dispose()
@@ -63,8 +63,8 @@ class TestMigrationChain:
         assert tables <= {"alembic_version"}
         engine.dispose()
 
-    def test_head_revision_is_003(self, tmp_path):
-        """Current migration head is revision 003."""
+    def test_head_revision_is_004(self, tmp_path):
+        """Current migration head is revision 004."""
         engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
         with engine.begin() as conn:
             command.upgrade(_test_cfg(conn), "head")
@@ -73,7 +73,7 @@ class TestMigrationChain:
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
 
         assert row is not None
-        assert row[0] == "003"
+        assert row[0] == "004"
         engine.dispose()
 
     def test_migration_schema_matches_create_all(self, tmp_path):
@@ -131,7 +131,7 @@ class TestEnsureDbMigrated:
         finally:
             settings.vault_db_url = original_url
 
-        # Verify: tables + alembic_version stamped at 002
+        # Verify: tables + alembic_version stamped at head
         sync_engine = create_engine(f"sqlite:///{db_path}")
         with sync_engine.begin() as conn:
             tables = set(inspect(conn).get_table_names())
@@ -139,7 +139,7 @@ class TestEnsureDbMigrated:
             assert "users" in tables
             assert "alembic_version" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "003"
+            assert row[0] == "004"
         sync_engine.dispose()
         await test_engine.dispose()
 
@@ -167,20 +167,20 @@ class TestEnsureDbMigrated:
         finally:
             settings.vault_db_url = original_url
 
-        # Verify: alembic_version stamped at 002, tables unchanged
+        # Verify: alembic_version stamped at head, tables unchanged
         sync_engine = create_engine(f"sqlite:///{db_path}")
         with sync_engine.begin() as conn:
             tables = set(inspect(conn).get_table_names())
             assert "alembic_version" in tables
             assert "api_keys" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "003"
+            assert row[0] == "004"
         sync_engine.dispose()
         await test_engine.dispose()
 
     @pytest.mark.asyncio
     async def test_alembic_tracked_db_gets_upgraded(self, tmp_path):
-        """Scenario 3: DB at revision 002 -> upgrade to 003."""
+        """Scenario 3: DB at revision 002 -> upgrade to head (004)."""
         db_path = tmp_path / "tracked.db"
 
         # Create DB at revision 002 via connection injection
@@ -205,12 +205,13 @@ class TestEnsureDbMigrated:
         finally:
             settings.vault_db_url = original_url
 
-        # Verify: upgraded to 003 with adapters table
+        # Verify: upgraded to head with adapters + eval_jobs tables
         sync_engine = create_engine(f"sqlite:///{db_path}")
         with sync_engine.begin() as conn:
             tables = set(inspect(conn).get_table_names())
             assert "adapters" in tables
+            assert "eval_jobs" in tables
             row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
-            assert row[0] == "003"
+            assert row[0] == "004"
         sync_engine.dispose()
         await test_engine.dispose()

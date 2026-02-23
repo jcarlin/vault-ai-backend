@@ -188,6 +188,17 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("training_services_init_skipped", reason=str(exc))
 
+        # Initialize eval services (Epic 17)
+        try:
+            from app.services.eval.service import EvalService
+            from app.services.eval.runner import EvalRunner
+
+            eval_service = EvalService()
+            eval_runner = EvalRunner(service=eval_service)
+            app.state.eval_runner = eval_runner
+        except Exception as exc:
+            logger.warning("eval_services_init_skipped", reason=str(exc))
+
     logger.info(
         "vault_backend_starting",
         vllm_url=settings.vllm_base_url,

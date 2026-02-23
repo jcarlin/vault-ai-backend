@@ -1,0 +1,5 @@
+{"prompt": "What is the capital of France?", "expected": "Paris", "category": "geography"}
+{"prompt": "What is 2 + 2?", "expected": "4", "category": "math"}
+{"prompt": "Who wrote Romeo and Juliet?", "expected": "William Shakespeare", "category": "literature"}
+{"prompt": "What is the chemical symbol for water?", "expected": "H2O", "category": "science"}
+{"prompt": "What is the largest planet in our solar system?", "expected": "Jupiter", "category": "science"}

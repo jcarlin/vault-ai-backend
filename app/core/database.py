@@ -146,6 +146,34 @@ class Adapter(Base):
     activated_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+# ── Epic 17: Eval Jobs ─────────────────────────────────────────────────────
+
+
+class EvalJob(Base):
+    __tablename__ = "eval_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    progress: Mapped[float] = mapped_column(Float, default=0.0)
+    model_id: Mapped[str] = mapped_column(String(255))
+    adapter_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("adapters.id"), nullable=True
+    )
+    dataset_id: Mapped[str] = mapped_column(String(255))
+    dataset_type: Mapped[str] = mapped_column(String(20), default="builtin")
+    config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    results_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    total_examples: Mapped[int] = mapped_column(Integer, default=0)
+    examples_completed: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+
+
 # ── Rev 2: Audit Log ─────────────────────────────────────────────────────────
 
 

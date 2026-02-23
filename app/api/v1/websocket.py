@@ -335,6 +335,46 @@ async def training_progress_ws(
             pass
 
 
+@router.websocket("/ws/eval/{job_id}")
+async def eval_progress_ws(
+    websocket: WebSocket,
+    job_id: str,
+    token: str = Query(default=""),
+):
+    """Real-time eval job progress streaming. User-level auth."""
+    if await _validate_ws_token(token) is None:
+        await websocket.close(code=4001, reason="Invalid or missing API key")
+        return
+
+    await websocket.accept()
+
+    try:
+        while True:
+            eval_runner = getattr(websocket.app.state, "eval_runner", None)
+            if eval_runner is None:
+                await websocket.send_json({"type": "error", "message": "Eval runner not available"})
+                break
+
+            status = eval_runner.get_latest_status(job_id)
+            if status is None:
+                await websocket.send_json({"type": "waiting", "message": "No progress data yet"})
+            else:
+                await websocket.send_json({"type": "progress", "data": status})
+
+                # If eval is done, send final message and close
+                if status.get("state") in ("completed", "failed", "cancelled"):
+                    break
+
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @router.websocket("/ws/terminal")
 async def terminal_ws(
     websocket: WebSocket,

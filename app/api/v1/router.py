@@ -39,6 +39,9 @@ from app.api.v1.adapters import router as adapters_router
 # Epic 19
 from app.api.v1.devmode import router as devmode_router
 
+# Epic 17
+from app.api.v1.eval import router as eval_router
+
 v1_router = APIRouter()
 
 # Rev 1
@@ -84,3 +87,6 @@ v1_router.include_router(adapters_router, tags=["Training"])
 
 # Epic 19
 v1_router.include_router(devmode_router, tags=["DevMode"])
+
+# Epic 17
+v1_router.include_router(eval_router, tags=["Evaluation"])
