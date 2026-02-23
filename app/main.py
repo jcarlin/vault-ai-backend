@@ -171,7 +171,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.services.uptime_monitor import UptimeMonitor
 
-            uptime_monitor = UptimeMonitor(session_factory=db_module.async_session)
+            uptime_monitor = UptimeMonitor(session_factory=async_session)
             await uptime_monitor.start()
             app.state.uptime_monitor = uptime_monitor
         except Exception as exc:
@@ -285,8 +285,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.vault_cors_origins.split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["authorization", "content-type", "x-request-id"],
 )
 app.add_middleware(RequestLoggingMiddleware)
 
