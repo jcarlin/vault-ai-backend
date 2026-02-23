@@ -58,15 +58,41 @@ class ModelManager:
 
     async def list_models(self, backend=None) -> list[dict]:
         manifest = self._load_manifest()
-        loaded_ids: set[str] = set()
-        if backend:
-            loaded_ids = await self._get_running_ids(backend)
+        manifest_ids = {m["id"] for m in manifest}
 
-        result = []
+        # Query live backend for running models
+        live_models: list = []
+        if backend:
+            try:
+                live_models = await backend.list_models()
+            except Exception:
+                pass
+        live_ids = {
+            self._normalize_id(m.id) for m in live_models if m.status == "running"
+        }
+
+        result: list[dict] = []
+        # 1) Manifest models with loaded/available status
         for m in manifest:
             info = dict(m)
-            info["status"] = "loaded" if m["id"] in loaded_ids else "available"
+            info["status"] = "loaded" if m["id"] in live_ids else "available"
             result.append(info)
+
+        # 2) Backend-only models (not in manifest) — e.g. cloud/Gemini models
+        for m in live_models:
+            norm_id = self._normalize_id(m.id)
+            if norm_id not in manifest_ids:
+                result.append(
+                    {
+                        "id": norm_id,
+                        "name": m.name or norm_id,
+                        "status": "loaded",
+                        "parameters": m.parameters,
+                        "context_window": m.context_window,
+                        "description": getattr(m, "description", None),
+                    }
+                )
+
         return result
 
     async def get_model(self, model_id: str, backend=None) -> dict:

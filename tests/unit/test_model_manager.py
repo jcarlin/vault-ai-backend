@@ -36,6 +36,36 @@ async def manager(tmp_path):
     return mgr
 
 
+class _FakeModelInfo:
+    """Minimal stand-in for ModelInfo returned by backend.list_models()."""
+
+    def __init__(
+        self,
+        id,
+        name=None,
+        status="running",
+        parameters=None,
+        context_window=None,
+        description=None,
+    ):
+        self.id = id
+        self.name = name or id
+        self.status = status
+        self.parameters = parameters
+        self.context_window = context_window
+        self.description = description
+
+
+class _FakeBackend:
+    """Fake backend that returns a configurable list of models."""
+
+    def __init__(self, models: list[_FakeModelInfo]):
+        self._models = models
+
+    async def list_models(self):
+        return self._models
+
+
 class TestListModels:
     @pytest.mark.asyncio
     async def test_list_returns_manifest_models(self, manager):
@@ -52,6 +82,53 @@ class TestListModels:
         mgr._gpu_config_path = tmp_path / "gpu.yaml"
         models = await mgr.list_models()
         assert models == []
+
+    @pytest.mark.asyncio
+    async def test_list_merges_backend_only_models(self, manager):
+        """Backend-discovered models not in manifest appear as 'loaded'."""
+        backend = _FakeBackend(
+            [
+                _FakeModelInfo(
+                    id="gemini-2.0-flash",
+                    name="Gemini 2.0 Flash",
+                    status="running",
+                    parameters="cloud",
+                    context_window=1048576,
+                    description="Google Gemini 2.0 Flash",
+                ),
+                # Also return a manifest model so we verify no duplication
+                _FakeModelInfo(id="test-model-7b", status="running"),
+            ]
+        )
+        models = await manager.list_models(backend=backend)
+
+        ids = [m["id"] for m in models]
+        assert "test-model-7b" in ids
+        assert "gemini-2.0-flash" in ids
+        assert len(models) == 2  # no duplicates
+
+        # Manifest model should be "loaded" (matched from backend)
+        manifest_model = next(m for m in models if m["id"] == "test-model-7b")
+        assert manifest_model["status"] == "loaded"
+
+        # Backend-only model should be "loaded" with its metadata
+        cloud_model = next(m for m in models if m["id"] == "gemini-2.0-flash")
+        assert cloud_model["status"] == "loaded"
+        assert cloud_model["name"] == "Gemini 2.0 Flash"
+        assert cloud_model["context_window"] == 1048576
+
+    @pytest.mark.asyncio
+    async def test_list_backend_failure_returns_manifest_only(self, manager):
+        """If backend raises, manifest models still returned as 'available'."""
+
+        class _FailingBackend:
+            async def list_models(self):
+                raise ConnectionError("backend down")
+
+        models = await manager.list_models(backend=_FailingBackend())
+        assert len(models) == 1
+        assert models[0]["id"] == "test-model-7b"
+        assert models[0]["status"] == "available"
 
 
 class TestGetModel:
