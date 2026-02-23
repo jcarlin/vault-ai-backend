@@ -1,0 +1,5 @@
+this is not json at all
+{"missing_required_fields": true}
+{"messages": "not a list"}
+{"messages": [{"no_role": true, "content": "test"}]}
+{"messages": [{"role": "invalid_role", "content": "test"}]}

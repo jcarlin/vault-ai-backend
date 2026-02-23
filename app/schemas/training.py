@@ -11,6 +11,14 @@ class TrainingConfig(BaseModel):
     scheduler: str = "cosine"
 
 
+class LoRAConfig(BaseModel):
+    rank: int = 16
+    alpha: int = 32
+    dropout: float = 0.05
+    target_modules: list[str] = ["q_proj", "v_proj"]
+    quantization_bits: int | None = None  # None = full precision, 4 = QLoRA, 8 = 8-bit
+
+
 class TrainingMetrics(BaseModel):
     loss: float | None = None
     accuracy: float | None = None
@@ -19,6 +27,9 @@ class TrainingMetrics(BaseModel):
     total_epochs: int = 0
     tokens_processed: int = 0
     estimated_time_remaining: str | None = None
+    loss_history: list[dict] | None = None
+    steps_completed: int = 0
+    total_steps: int = 0
 
 
 class ResourceAllocation(BaseModel):
@@ -34,6 +45,8 @@ class TrainingJobCreate(BaseModel):
     dataset: str
     config: TrainingConfig = TrainingConfig()
     resource_allocation: ResourceAllocation = ResourceAllocation()
+    adapter_type: str = "lora"  # "lora" or "qlora"
+    lora_config: LoRAConfig = LoRAConfig()
 
 
 class TrainingJobResponse(BaseModel):
@@ -46,6 +59,9 @@ class TrainingJobResponse(BaseModel):
     config: TrainingConfig
     metrics: TrainingMetrics
     resource_allocation: ResourceAllocation
+    adapter_type: str = "lora"
+    lora_config: LoRAConfig | None = None
+    adapter_id: str | None = None
     error: str | None = None
     started_at: str | None
     completed_at: str | None
@@ -55,3 +71,51 @@ class TrainingJobResponse(BaseModel):
 class TrainingJobList(BaseModel):
     jobs: list[TrainingJobResponse]
     total: int
+
+
+# ── Dataset Validation ──────────────────────────────────────────────────────
+
+
+class DatasetValidationRequest(BaseModel):
+    path: str
+
+
+class DatasetValidationResponse(BaseModel):
+    valid: bool
+    format: str | None = None
+    record_count: int = 0
+    findings: list[dict] = []
+
+
+# ── Adapter Management ──────────────────────────────────────────────────────
+
+
+class AdapterInfo(BaseModel):
+    id: str
+    name: str
+    base_model: str
+    adapter_type: str  # "lora" or "qlora"
+    status: str  # "ready", "active", "failed"
+    path: str
+    training_job_id: str | None = None
+    config: dict | None = None
+    metrics: dict | None = None
+    size_bytes: int = 0
+    version: int = 1
+    created_at: str
+    activated_at: str | None = None
+
+
+class AdapterList(BaseModel):
+    adapters: list[AdapterInfo]
+    total: int
+
+
+# ── GPU Allocation ──────────────────────────────────────────────────────────
+
+
+class GPUAllocationStatus(BaseModel):
+    gpu_index: int
+    assigned_to: str | None = None  # "inference" or "training"
+    job_id: str | None = None
+    memory_used_pct: float = 0.0

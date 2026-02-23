@@ -33,6 +33,9 @@ from app.api.v1.updates import router as updates_router
 # Epic 14
 from app.api.v1.auth import router as auth_router
 
+# Epic 16
+from app.api.v1.adapters import router as adapters_router
+
 # Epic 19
 from app.api.v1.devmode import router as devmode_router
 
@@ -75,6 +78,9 @@ v1_router.include_router(updates_router, tags=["Updates"])
 
 # Epic 14
 v1_router.include_router(auth_router, tags=["Auth"])
+
+# Epic 16
+v1_router.include_router(adapters_router, tags=["Training"])
 
 # Epic 19
 v1_router.include_router(devmode_router, tags=["DevMode"])

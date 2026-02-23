@@ -1,0 +1,5 @@
+{"prompt": "Summarize the following contract clause:", "completion": "This clause establishes the terms of confidentiality between the signing parties."}
+{"prompt": "Identify risks in this paragraph:", "completion": "The main risks include potential breach of fiduciary duty and lack of termination provisions."}
+{"prompt": "Rewrite in plain language:", "completion": "Both parties agree to keep shared information private for three years after this agreement ends."}
+{"prompt": "Extract key terms:", "completion": "Key terms: effective date (Jan 1, 2026), duration (24 months), governing law (Delaware), termination clause (30 days notice)."}
+{"prompt": "What type of contract is this?", "completion": "This is a service level agreement (SLA) between a cloud provider and enterprise customer."}

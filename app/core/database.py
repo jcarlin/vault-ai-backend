@@ -111,11 +111,39 @@ class TrainingJob(Base):
     user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=True
     )
+    adapter_type: Mapped[str] = mapped_column(String(20), default="lora")
+    lora_config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    adapter_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now()
     )
+
+
+# ── Epic 16: Adapters ──────────────────────────────────────────────────────
+
+
+class Adapter(Base):
+    __tablename__ = "adapters"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    base_model: Mapped[str] = mapped_column(String(255))
+    adapter_type: Mapped[str] = mapped_column(String(20), default="lora")
+    status: Mapped[str] = mapped_column(String(20), default="ready")  # ready/active/failed
+    path: Mapped[str] = mapped_column(String(1000))
+    training_job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("training_jobs.id"), nullable=True
+    )
+    config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+    activated_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # ── Rev 2: Audit Log ─────────────────────────────────────────────────────────

@@ -167,6 +167,27 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("update_service_init_skipped", reason=str(exc))
 
+        # Initialize training services (Epic 16)
+        try:
+            from app.services.training.scheduler import GPUScheduler
+            from app.services.training.service import TrainingService
+            from app.services.training.runner import TrainingRunner
+            from app.services.training.adapter_manager import AdapterManager
+            from app.services.training.progress import ProgressTracker
+
+            gpu_scheduler = GPUScheduler()
+            training_service = TrainingService()
+            training_runner = TrainingRunner(scheduler=gpu_scheduler, service=training_service)
+            adapter_manager = AdapterManager()
+            progress_tracker = ProgressTracker()
+
+            app.state.gpu_scheduler = gpu_scheduler
+            app.state.training_runner = training_runner
+            app.state.adapter_manager = adapter_manager
+            app.state.progress_tracker = progress_tracker
+        except Exception as exc:
+            logger.warning("training_services_init_skipped", reason=str(exc))
+
     logger.info(
         "vault_backend_starting",
         vllm_url=settings.vllm_base_url,

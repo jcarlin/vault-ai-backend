@@ -294,6 +294,47 @@ async def _pty_ws_bridge(
             pass
 
 
+@router.websocket("/ws/training/{job_id}")
+async def training_progress_ws(
+    websocket: WebSocket,
+    job_id: str,
+    token: str = Query(default=""),
+):
+    """Real-time training metrics + log streaming. User-level auth."""
+    if await _validate_ws_token(token) is None:
+        await websocket.close(code=4001, reason="Invalid or missing API key")
+        return
+
+    await websocket.accept()
+
+    try:
+        while True:
+            # Read progress from the training runner's status.json
+            progress_tracker = getattr(websocket.app.state, "progress_tracker", None)
+            if progress_tracker is None:
+                await websocket.send_json({"type": "error", "message": "Training progress tracker not available"})
+                break
+
+            progress = progress_tracker.get_progress(job_id)
+            if progress is None:
+                await websocket.send_json({"type": "waiting", "message": "No progress data yet"})
+            else:
+                await websocket.send_json({"type": "progress", "data": progress})
+
+                # If training is done, send final message and close
+                if progress.get("state") in ("completed", "failed", "cancelled", "paused"):
+                    break
+
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @router.websocket("/ws/terminal")
 async def terminal_ws(
     websocket: WebSocket,

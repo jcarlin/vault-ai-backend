@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     vault_devmode_jupyter_image: str = "jupyter/scipy-notebook:latest"
     vault_devmode_jupyter_port: int = 8888
 
+    # Training & fine-tuning (Epic 16)
+    vault_training_venv: str = "/opt/vault/training-venv"
+    vault_adapters_dir: str = "/opt/vault/adapters"
+    vault_training_data_dir: str = "/opt/vault/data/training"
+    vault_training_gpu_index: int = 1
+    vault_training_max_concurrent: int = 1
+
     model_config = {"env_prefix": "", "case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
 
