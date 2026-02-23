@@ -2,6 +2,7 @@ import asyncio
 import json
 import platform
 import random
+import shutil
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -182,7 +183,7 @@ class ServiceManager:
         offset: int = 0,
     ) -> tuple[list[dict], int]:
         """Get system logs from journalctl. Returns (entries, total)."""
-        if platform.system() != "Linux":
+        if platform.system() != "Linux" or shutil.which("journalctl") is None:
             return self._mock_logs(service, severity, limit, offset)
 
         cmd = ["journalctl", "--output=json", "--no-pager", "--reverse"]

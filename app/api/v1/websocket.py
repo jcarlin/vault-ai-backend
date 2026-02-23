@@ -1,6 +1,7 @@
 import asyncio
 import json as _json
 import platform
+import shutil
 import sys
 from datetime import datetime, timezone
 
@@ -154,9 +155,9 @@ async def live_logs_ws(
         return
 
     # journalctl only available on Linux with systemd
-    if platform.system() != "Linux":
+    if platform.system() != "Linux" or shutil.which("journalctl") is None:
         await websocket.accept()
-        await websocket.send_json({"type": "info", "message": "Live logs unavailable — not running on Linux/systemd"})
+        await websocket.send_json({"type": "info", "message": "Live logs unavailable — journalctl/systemd not found"})
         await websocket.close(code=1000)
         return
 
