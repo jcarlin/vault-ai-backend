@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -71,7 +71,7 @@ class Conversation(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
-    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
 
 
 class Message(Base):
@@ -304,12 +304,45 @@ class UpdateJob(Base):
 
 # ── Engine & Session ──────────────────────────────────────────────────────────
 
-engine = create_async_engine(settings.vault_db_url, echo=False)
+_engine_kwargs: dict = {"echo": False}
+if settings.vault_db_url.startswith("postgresql"):
+    _engine_kwargs.update({
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_pre_ping": True,
+    })
+
+engine = create_async_engine(settings.vault_db_url, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def init_db() -> None:
-    """Ensure database schema is up to date via Alembic migrations."""
+    """Ensure database schema is up to date via Alembic migrations.
+
+    For PostgreSQL, retries connection for up to ~30s to handle cold boot
+    scenarios where the database container is still starting.
+    """
+    import asyncio
+    import structlog
+
+    log = structlog.get_logger()
+
+    if settings.vault_db_url.startswith("postgresql"):
+        max_attempts = 10
+        for attempt in range(1, max_attempts + 1):
+            try:
+                async with engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+                log.info("db_connected", attempt=attempt)
+                break
+            except Exception as exc:
+                if attempt == max_attempts:
+                    log.error("db_connect_failed", attempts=max_attempts, error=str(exc))
+                    raise
+                delay = min(1.0 * (2 ** (attempt - 1)), 5.0)  # 1, 2, 4, 5, 5, 5...
+                log.warning("db_connect_retry", attempt=attempt, delay=delay, error=str(exc))
+                await asyncio.sleep(delay)
+
     from app.core.migrations import ensure_db_migrated
 
     await ensure_db_migrated()

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     vault_secret_key: str = "dev-secret-key-change-in-production"
 
     # Database
-    vault_db_url: str = "sqlite+aiosqlite:///data/vault.db"
+    vault_db_url: str = "postgresql+asyncpg://vault:vault@localhost:5432/vault"
 
     # Logging
     vault_log_level: str = "info"

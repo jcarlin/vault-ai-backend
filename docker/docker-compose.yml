@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: vault
+      POSTGRES_PASSWORD: vault
+      POSTGRES_DB: vault
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./postgres/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   mock-vllm:
     build:
       context: ..
@@ -20,9 +37,11 @@ services:
     environment:
       VLLM_BASE_URL: http://mock-vllm:8001
       VAULT_SECRET_KEY: dev-secret-change-in-production
-      VAULT_DB_URL: sqlite+aiosqlite:///app/data/vault.db
+      VAULT_DB_URL: postgresql+asyncpg://vault:vault@postgres:5432/vault
       VAULT_CORS_ORIGINS: "*"
     depends_on:
+      postgres:
+        condition: service_healthy
       mock-vllm:
         condition: service_healthy
     volumes:
@@ -39,5 +58,6 @@ services:
       - api-gateway
 
 volumes:
+  pg-data:
   vault-data:
   caddy-data:

@@ -1,6 +1,8 @@
+import asyncio
 import hashlib
 import io
 import json
+import os
 import platform
 import shutil
 import sqlite3
@@ -8,6 +10,7 @@ import tarfile
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import structlog
 from cryptography.fernet import Fernet
@@ -406,34 +409,38 @@ class DiagnosticsService:
         # Create tarball in a temp directory
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-
-            # 1. SQLite backup using .backup() API
-            db_backup_path = tmpdir_path / "vault.db"
             db_url = settings.vault_db_url
-            # Extract the actual file path from the SQLite URL
-            if ":///" in db_url:
-                source_db_path = db_url.split(":///", 1)[1]
-            else:
-                source_db_path = "data/vault.db"
 
-            source_path = Path(source_db_path)
-            if source_path.exists():
-                # Use SQLite's backup API for atomic snapshot
-                src_conn = sqlite3.connect(str(source_path))
-                dst_conn = sqlite3.connect(str(db_backup_path))
-                src_conn.backup(dst_conn)
-                src_conn.close()
-                dst_conn.close()
+            # 1. Database backup
+            if db_url.startswith("postgresql"):
+                # PostgreSQL: pg_dump to custom format (compressed, supports pg_restore)
+                db_backup_path = tmpdir_path / "vault.pgdump"
+                db_arcname = "vault.pgdump"
+                await self._pg_dump(db_url, db_backup_path)
             else:
-                # In-memory or test DB — dump via async session
-                async with self._session_factory() as session:
-                    # For in-memory DBs, create a snapshot
-                    conn = await session.connection()
-                    raw_conn = await conn.get_raw_connection()
-                    raw_sqlite = raw_conn.dbapi_connection
+                # SQLite backup using .backup() API
+                db_backup_path = tmpdir_path / "vault.db"
+                db_arcname = "vault.db"
+                if ":///" in db_url:
+                    source_db_path = db_url.split(":///", 1)[1]
+                else:
+                    source_db_path = "data/vault.db"
+
+                source_path = Path(source_db_path)
+                if source_path.exists():
+                    src_conn = sqlite3.connect(str(source_path))
                     dst_conn = sqlite3.connect(str(db_backup_path))
-                    raw_sqlite.backup(dst_conn)
+                    src_conn.backup(dst_conn)
+                    src_conn.close()
                     dst_conn.close()
+                else:
+                    async with self._session_factory() as session:
+                        conn = await session.connection()
+                        raw_conn = await conn.get_raw_connection()
+                        raw_sqlite = raw_conn.dbapi_connection
+                        dst_conn = sqlite3.connect(str(db_backup_path))
+                        raw_sqlite.backup(dst_conn)
+                        dst_conn.close()
 
             # 2. Config files
             config_dir = tmpdir_path / "config"
@@ -460,7 +467,7 @@ class DiagnosticsService:
             tar_path = tmpdir_path / "backup.tar.gz"
             with tarfile.open(tar_path, "w:gz") as tar:
                 if db_backup_path.exists():
-                    tar.add(db_backup_path, arcname="vault.db")
+                    tar.add(db_backup_path, arcname=db_arcname)
                 if config_dir.exists():
                     for f in config_dir.iterdir():
                         tar.add(f, arcname=f"config/{f.name}")
@@ -473,7 +480,6 @@ class DiagnosticsService:
 
             # Optionally encrypt
             if passphrase:
-                import os
                 salt = os.urandom(16)
                 key = _derive_fernet_key(passphrase, salt)
                 f = Fernet(key)
@@ -542,7 +548,19 @@ class DiagnosticsService:
                 status=400,
             )
 
-        if "vault.db" not in members:
+        # Determine DB type and validate archive contents
+        db_url = settings.vault_db_url
+        is_pg = db_url.startswith("postgresql")
+        has_pgdump = "vault.pgdump" in members
+        has_sqlite = "vault.db" in members
+
+        if is_pg and not has_pgdump and not has_sqlite:
+            raise VaultError(
+                code="restore_error",
+                message="Backup archive does not contain vault.pgdump or vault.db",
+                status=400,
+            )
+        if not is_pg and not has_sqlite:
             raise VaultError(
                 code="restore_error",
                 message="Backup archive does not contain vault.db",
@@ -560,23 +578,33 @@ class DiagnosticsService:
             tmpdir_path = Path(tmpdir)
 
             # Restore database
-            db_url = settings.vault_db_url
-            if ":///" in db_url:
-                target_db_path = Path(db_url.split(":///", 1)[1])
+            if is_pg:
+                backup_pgdump = tmpdir_path / "vault.pgdump"
+                if backup_pgdump.exists():
+                    await self._pg_restore(db_url, backup_pgdump)
+                    tables_restored.append("vault.pgdump")
+                elif has_sqlite:
+                    logger.warning("restore_sqlite_backup_on_pg",
+                                   message="SQLite backup detected on PostgreSQL system. "
+                                           "Use migrate_sqlite_to_pg.py to import.")
+                    tables_restored.append("vault.db (skipped — use migration script)")
             else:
-                target_db_path = Path("data/vault.db")
+                # SQLite restore
+                if ":///" in db_url:
+                    target_db_path = Path(db_url.split(":///", 1)[1])
+                else:
+                    target_db_path = Path("data/vault.db")
 
-            backup_db = tmpdir_path / "vault.db"
+                backup_db = tmpdir_path / "vault.db"
 
-            if target_db_path.exists():
-                # Save old DB as .bak
-                bak_path = target_db_path.with_suffix(".db.bak")
-                shutil.copy2(target_db_path, bak_path)
-                logger.info("restore_old_db_backed_up", path=str(bak_path))
+                if target_db_path.exists():
+                    bak_path = target_db_path.with_suffix(".db.bak")
+                    shutil.copy2(target_db_path, bak_path)
+                    logger.info("restore_old_db_backed_up", path=str(bak_path))
 
-            if backup_db.exists() and target_db_path.parent.exists():
-                shutil.copy2(backup_db, target_db_path)
-                tables_restored.append("vault.db")
+                if backup_db.exists() and target_db_path.parent.exists():
+                    shutil.copy2(backup_db, target_db_path)
+                    tables_restored.append("vault.db")
 
             # Restore config files
             config_src = tmpdir_path / "config"
@@ -612,3 +640,60 @@ class DiagnosticsService:
             "tables_restored": tables_restored,
             "message": f"Restored {len(tables_restored)} items from backup. Restart the service to apply database changes.",
         }
+
+    # ── PostgreSQL helpers ───────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_pg_url(db_url: str) -> tuple[str, str, str, str]:
+        """Parse a PostgreSQL URL into (host, port, user, dbname) and set PGPASSWORD."""
+        parsed = urlparse(db_url.replace("+asyncpg", ""))
+        host = parsed.hostname or "localhost"
+        port = str(parsed.port or 5432)
+        user = parsed.username or "vault"
+        dbname = parsed.path.lstrip("/")
+        password = parsed.password or ""
+        return host, port, user, dbname, password
+
+    async def _pg_dump(self, db_url: str, output_path: Path) -> None:
+        """Run pg_dump to create a custom-format backup."""
+        host, port, user, dbname, password = self._parse_pg_url(db_url)
+        env = {**os.environ, "PGPASSWORD": password}
+        cmd = [
+            "pg_dump", "-Fc",
+            "-h", host, "-p", port, "-U", user,
+            "-d", dbname, "-f", str(output_path),
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise VaultError(
+                code="backup_error",
+                message=f"pg_dump failed: {stderr.decode().strip()}",
+                status=500,
+            )
+
+    async def _pg_restore(self, db_url: str, backup_path: Path) -> None:
+        """Run pg_restore to restore from a custom-format backup."""
+        host, port, user, dbname, password = self._parse_pg_url(db_url)
+        env = {**os.environ, "PGPASSWORD": password}
+        cmd = [
+            "pg_restore", "--clean", "--if-exists",
+            "-h", host, "-p", port, "-U", user,
+            "-d", dbname, str(backup_path),
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise VaultError(
+                code="restore_error",
+                message=f"pg_restore failed: {stderr.decode().strip()}",
+                status=500,
+            )
