@@ -118,7 +118,7 @@ class TestServices:
     @pytest.mark.asyncio
     async def test_restart_self(self, auth_client_monitoring):
         response = await auth_client_monitoring.post(
-            "/vault/system/services/vault-api/restart"
+            "/vault/system/services/vault-backend/restart"
         )
         assert response.status_code == 400
 
@@ -133,6 +133,24 @@ class TestSystemLogs:
         assert "total" in data
         assert "limit" in data
         assert "offset" in data
+        # Mock logs should return entries on non-Linux (dev)
+        assert len(data["entries"]) > 0
+        assert data["total"] > 0
+
+    @pytest.mark.asyncio
+    async def test_get_logs_entry_format(self, auth_client_monitoring):
+        """Verify log entries have correct data types matching frontend expectations."""
+        response = await auth_client_monitoring.get("/vault/system/logs")
+        data = response.json()
+        entry = data["entries"][0]
+        # Timestamp must be ISO 8601 (parseable, ends with Z)
+        assert entry["timestamp"].endswith("Z")
+        datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
+        # Severity must be a string name, not a number
+        assert entry["severity"] in ("critical", "error", "warning", "info", "debug")
+        # Service must not have .service suffix
+        assert not entry["service"].endswith(".service")
+        assert isinstance(entry["message"], str)
 
     @pytest.mark.asyncio
     async def test_get_logs_with_params(self, auth_client_monitoring):
@@ -143,3 +161,35 @@ class TestSystemLogs:
         data = response.json()
         assert data["limit"] == 10
         assert data["offset"] == 0
+        # All entries should be error severity when filtered
+        for entry in data["entries"]:
+            assert entry["severity"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_service_filter(self, auth_client_monitoring):
+        """Verify service filter maps friendly names to correct results."""
+        response = await auth_client_monitoring.get(
+            "/vault/system/logs", params={"service": "vllm", "limit": 50}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        for entry in data["entries"]:
+            assert entry["service"] == "vault-vllm"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_pagination(self, auth_client_monitoring):
+        """Verify pagination returns different entries."""
+        resp1 = await auth_client_monitoring.get(
+            "/vault/system/logs", params={"limit": 5, "offset": 0}
+        )
+        resp2 = await auth_client_monitoring.get(
+            "/vault/system/logs", params={"limit": 5, "offset": 5}
+        )
+        data1 = resp1.json()
+        data2 = resp2.json()
+        assert len(data1["entries"]) == 5
+        assert len(data2["entries"]) == 5
+        # Pages should not overlap
+        ts1 = {e["timestamp"] for e in data1["entries"]}
+        ts2 = {e["timestamp"] for e in data2["entries"]}
+        assert ts1.isdisjoint(ts2)

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import platform
+import random
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -10,8 +11,30 @@ from app.core.exceptions import VaultError
 logger = structlog.get_logger()
 
 # Services that can be managed
-MANAGED_SERVICES = {"vault-vllm", "vault-api", "caddy", "prometheus", "grafana", "cockpit"}
-RESTART_BLOCKED = {"vault-api"}  # Can't restart ourselves
+MANAGED_SERVICES = {"vault-vllm", "vault-backend", "caddy", "prometheus", "grafana", "cockpit"}
+RESTART_BLOCKED = {"vault-backend"}  # Can't restart ourselves
+
+# Friendly name → systemd unit name (shared with WebSocket handler)
+SERVICE_UNIT_MAP = {
+    "vllm": "vault-vllm",
+    "api-gateway": "vault-backend",
+    "prometheus": "prometheus",
+    "grafana": "grafana-server",
+    "caddy": "caddy",
+    "cockpit": "cockpit",
+}
+
+# journalctl PRIORITY → severity string
+PRIORITY_TO_SEVERITY = {
+    0: "critical",
+    1: "critical",
+    2: "critical",
+    3: "error",
+    4: "warning",
+    5: "info",
+    6: "info",
+    7: "debug",
+}
 
 
 class ServiceManager:
@@ -112,6 +135,44 @@ class ServiceManager:
         except Exception as e:
             return {"service": service_name, "status": "failed", "message": str(e)}
 
+    @staticmethod
+    def _format_utc(dt: datetime) -> str:
+        """Format a UTC datetime as ISO 8601 with Z suffix."""
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def _parse_journal_entry(self, raw: dict) -> dict:
+        """Transform raw journalctl JSON into frontend-compatible log entry."""
+        # Timestamp: microseconds since epoch → ISO 8601
+        ts_usec = raw.get("__REALTIME_TIMESTAMP")
+        if ts_usec:
+            try:
+                ts = self._format_utc(
+                    datetime.fromtimestamp(int(ts_usec) / 1_000_000, tz=timezone.utc)
+                )
+            except (ValueError, OSError):
+                ts = self._format_utc(datetime.now(timezone.utc))
+        else:
+            ts = self._format_utc(datetime.now(timezone.utc))
+
+        # Severity: priority int → string
+        try:
+            priority = int(raw.get("PRIORITY", 6))
+        except (ValueError, TypeError):
+            priority = 6
+        severity = PRIORITY_TO_SEVERITY.get(priority, "info")
+
+        # Service: strip .service suffix
+        svc = raw.get("_SYSTEMD_UNIT", raw.get("SYSLOG_IDENTIFIER", "unknown"))
+        if svc.endswith(".service"):
+            svc = svc[:-8]
+
+        return {
+            "timestamp": ts,
+            "service": svc,
+            "severity": severity,
+            "message": raw.get("MESSAGE", ""),
+        }
+
     async def get_logs(
         self,
         service: str | None = None,
@@ -122,15 +183,18 @@ class ServiceManager:
     ) -> tuple[list[dict], int]:
         """Get system logs from journalctl. Returns (entries, total)."""
         if platform.system() != "Linux":
-            return [], 0
+            return self._mock_logs(service, severity, limit, offset)
 
-        cmd = ["journalctl", "--output=json", "--no-pager"]
+        cmd = ["journalctl", "--output=json", "--no-pager", "--reverse"]
         if service:
-            cmd.extend(["-u", service])
+            # Map friendly names to systemd unit names
+            unit = SERVICE_UNIT_MAP.get(service, service)
+            cmd.extend(["-u", unit])
         if severity:
             priority_map = {"error": "3", "warning": "4", "info": "6", "debug": "7"}
-            if severity.lower() in priority_map:
-                cmd.extend(["-p", priority_map[severity.lower()]])
+            pri = priority_map.get(severity.lower())
+            if pri:
+                cmd.extend(["-p", f"0..{pri}"])
         if since:
             cmd.extend(["--since", since])
         cmd.extend(["-n", str(limit + offset)])
@@ -148,15 +212,8 @@ class ServiceManager:
                 if not line:
                     continue
                 try:
-                    entry = json.loads(line)
-                    entries.append(
-                        {
-                            "timestamp": entry.get("__REALTIME_TIMESTAMP", ""),
-                            "service": entry.get("_SYSTEMD_UNIT", "unknown"),
-                            "severity": entry.get("PRIORITY", "6"),
-                            "message": entry.get("MESSAGE", ""),
-                        }
-                    )
+                    raw = json.loads(line)
+                    entries.append(self._parse_journal_entry(raw))
                 except json.JSONDecodeError:
                     continue
 
@@ -165,6 +222,59 @@ class ServiceManager:
             return entries, total
         except Exception:
             return [], 0
+
+    def _mock_logs(
+        self,
+        service: str | None,
+        severity: str | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[dict], int]:
+        """Return sample log entries on non-Linux (dev) for UI testing."""
+        services = ["vault-backend", "vault-vllm", "caddy", "prometheus", "grafana"]
+        severities = ["info", "info", "info", "info", "warning", "error", "debug"]
+        messages = [
+            "Request completed successfully",
+            "Model qwen2.5-32b-awq loaded in 4.2s",
+            "Health check passed — all services operational",
+            "TLS certificate valid for 364 days",
+            "Slow query detected: 1.8s on /v1/chat/completions",
+            "Connection refused to vLLM backend — retrying in 5s",
+            "Worker process started (PID 4821)",
+            "Prometheus scrape completed — 142 metrics exported",
+            "Rate limit threshold approaching for key vault_sk_a1b2",
+            "Disk usage at 67% on /opt/vault/models",
+            "Database vacuum completed — freed 12MB",
+            "GPU temperature nominal: 52°C",
+            "Caddy reverse proxy reloaded with new TLS config",
+            "Backup job completed — 48MB archive created",
+            "Inference request queued — 3 pending",
+        ]
+
+        # Use a seeded RNG so results are stable within a given second
+        # but vary across time (for realistic-looking refreshes)
+        seed = int(datetime.now(timezone.utc).timestamp())
+        rng = random.Random(seed)
+
+        now = datetime.now(timezone.utc)
+        pool = []
+        for i in range(200):
+            svc = rng.choice(services)
+            sev = rng.choice(severities)
+            if service and svc != SERVICE_UNIT_MAP.get(service, service):
+                continue
+            if severity and sev != severity.lower():
+                continue
+            ts = (now - timedelta(seconds=i * 15)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            pool.append({
+                "timestamp": ts,
+                "service": svc,
+                "severity": sev,
+                "message": rng.choice(messages),
+            })
+
+        total = len(pool)
+        return pool[offset : offset + limit], total
 
     async def get_inference_stats(self, session_factory) -> dict:
         """Calculate inference stats from AuditLog for last 5 minutes."""

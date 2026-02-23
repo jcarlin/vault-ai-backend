@@ -11,6 +11,7 @@ from app.core.database import ApiKey
 from app.core.security import hash_api_key
 from app.schemas.system import GpuDetail, SystemResources
 from app.services.monitoring import get_gpu_info
+from app.services.service_manager import PRIORITY_TO_SEVERITY, SERVICE_UNIT_MAP
 from app.services.system import get_system_resources
 
 router = APIRouter()
@@ -82,24 +83,10 @@ def _build_journalctl_cmd(service: str | None, severity: str | None) -> list[str
     """Build journalctl command with optional service/severity filters."""
     cmd = ["journalctl", "--follow", "--output=json", "-n", "50"]
     if service:
-        # Map friendly names to systemd unit names
-        unit_map = {
-            "vllm": "vault-vllm",
-            "api-gateway": "vault-backend",
-            "prometheus": "prometheus",
-            "grafana": "grafana-server",
-            "caddy": "caddy",
-        }
-        unit = unit_map.get(service, service)
+        unit = SERVICE_UNIT_MAP.get(service, service)
         cmd.extend(["-u", unit])
     if severity:
-        # Map severity to journalctl priority levels
-        priority_map = {
-            "error": "3",     # err
-            "warning": "4",   # warning
-            "info": "6",      # info
-            "debug": "7",     # debug
-        }
+        priority_map = {"error": "3", "warning": "4", "info": "6", "debug": "7"}
         priority = priority_map.get(severity.lower(), "6")
         cmd.extend(["-p", f"0..{priority}"])
     return cmd
@@ -115,9 +102,11 @@ def _parse_journal_entry(line: str) -> dict | None:
         return None
 
     # Map journalctl priority to severity string
-    priority = int(entry.get("PRIORITY", 6))
-    severity_map = {0: "critical", 1: "critical", 2: "critical", 3: "error", 4: "warning", 5: "info", 6: "info", 7: "debug"}
-    severity = severity_map.get(priority, "info")
+    try:
+        priority = int(entry.get("PRIORITY", 6))
+    except (ValueError, TypeError):
+        priority = 6
+    severity = PRIORITY_TO_SEVERITY.get(priority, "info")
 
     # Extract timestamp — journalctl uses __REALTIME_TIMESTAMP (microseconds since epoch)
     ts_usec = entry.get("__REALTIME_TIMESTAMP")
@@ -130,7 +119,6 @@ def _parse_journal_entry(line: str) -> dict | None:
         ts = datetime.now(timezone.utc).isoformat() + "Z"
 
     service = entry.get("_SYSTEMD_UNIT", entry.get("SYSLOG_IDENTIFIER", "unknown"))
-    # Strip .service suffix for cleaner display
     if service.endswith(".service"):
         service = service[:-8]
 
