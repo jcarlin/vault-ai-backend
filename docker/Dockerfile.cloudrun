@@ -23,6 +23,8 @@ RUN groupadd -r vault && useradd -r -g vault -s /bin/false vault
 COPY --from=builder /build/.venv /app/.venv
 COPY --from=builder /build/app /app/app
 COPY config/ /app/config/
+COPY alembic.ini /app/alembic.ini
+COPY alembic/ /app/alembic/
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
