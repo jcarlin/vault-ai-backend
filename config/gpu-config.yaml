@@ -1,5 +1,7 @@
 strategy: replica
 models:
   - id: qwen2.5-32b-awq
-    gpus: [0, 1, 2, 3]
+    gpus: [0]
     mode: replica
+    # To add a second GPU in replica mode, update gpus to [0, 1]
+    # NOTE: TP=2 is known broken on dual RTX 5090 as of Feb 2026

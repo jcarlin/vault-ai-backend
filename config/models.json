@@ -7,7 +7,9 @@
       "quantization": "AWQ 4-bit",
       "context_window": 32768,
       "vram_required_gb": 20,
-      "description": "Best balance of capability and speed. Recommended for most use cases."
+      "description": "Best balance of capability and speed. Recommended for most use cases.",
+      "path": "/opt/vault/models/qwen2.5-32b-awq",
+      "type": "chat"
     },
     {
       "id": "llama-3.3-8b-q4",
@@ -16,13 +18,9 @@
       "quantization": "AWQ 4-bit",
       "context_window": 131072,
       "vram_required_gb": 6,
-      "description": "Fast model for simple tasks. Lower capability but 4x faster."
-    },
-    {
-      "id": "gemini-2.0-flash",
-      "name": "Gemini 2.0 Flash",
-      "context_window": 1048576,
-      "description": "Google Gemini 2.0 Flash — fast cloud inference via OpenAI-compatible API."
+      "description": "Fast model for simple tasks. Lower capability but 4x faster.",
+      "path": "/opt/vault/models/llama-3.3-8b-q4",
+      "type": "chat"
     }
   ]
 }
