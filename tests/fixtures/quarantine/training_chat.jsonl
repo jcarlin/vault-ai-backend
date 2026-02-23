@@ -1,0 +1,10 @@
+{"messages": [{"role": "user", "content": "What is Python?"}, {"role": "assistant", "content": "Python is a high-level programming language."}]}
+{"messages": [{"role": "user", "content": "What is JavaScript?"}, {"role": "assistant", "content": "JavaScript is a scripting language for web development."}]}
+{"messages": [{"role": "user", "content": "What is Rust?"}, {"role": "assistant", "content": "Rust is a systems programming language focused on safety."}]}
+{"messages": [{"role": "user", "content": "What is Go?"}, {"role": "assistant", "content": "Go is a statically typed language designed at Google."}]}
+{"messages": [{"role": "user", "content": "What is C++?"}, {"role": "assistant", "content": "C++ is a general-purpose programming language with low-level memory access."}]}
+{"messages": [{"role": "user", "content": "What is Java?"}, {"role": "assistant", "content": "Java is a class-based, object-oriented programming language."}]}
+{"messages": [{"role": "user", "content": "What is Swift?"}, {"role": "assistant", "content": "Swift is a programming language for Apple platforms."}]}
+{"messages": [{"role": "user", "content": "What is Kotlin?"}, {"role": "assistant", "content": "Kotlin is a modern language that runs on the JVM."}]}
+{"messages": [{"role": "user", "content": "What is TypeScript?"}, {"role": "assistant", "content": "TypeScript is a typed superset of JavaScript."}]}
+{"messages": [{"role": "user", "content": "What is Ruby?"}, {"role": "assistant", "content": "Ruby is a dynamic, interpreted language focused on simplicity."}]}

@@ -1,0 +1,6 @@
+{
+  "architectures": ["SuperCustomModel"],
+  "model_type": "custom_transformer",
+  "hidden_size": 2048,
+  "num_hidden_layers": 16
+}

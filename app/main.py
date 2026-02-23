@@ -143,8 +143,12 @@ async def lifespan(app: FastAPI):
 
             sanitization = SanitizationStage(sanitized_dir=quarantine_dir.sanitized)
 
+            # Stage 4: AI Safety (Epic 13)
+            from app.services.quarantine.stages.ai_safety import AISafetyStage
+            ai_safety = AISafetyStage()
+
             quarantine_pipeline = QuarantinePipeline(directory=quarantine_dir)
-            quarantine_pipeline.set_stages([file_integrity, malware_scan, sanitization])
+            quarantine_pipeline.set_stages([file_integrity, malware_scan, sanitization, ai_safety])
             app.state.quarantine_pipeline = quarantine_pipeline
         except Exception as exc:
             logger.warning("quarantine_init_skipped", reason=str(exc))

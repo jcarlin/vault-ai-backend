@@ -26,6 +26,11 @@ QUARANTINE_DEFAULTS = {
     "quarantine.max_archive_depth": "3",
     "quarantine.auto_approve_clean": "true",
     "quarantine.strictness_level": "standard",  # standard/strict/paranoid
+    "quarantine.ai_safety_enabled": "true",
+    "quarantine.pii_enabled": "true",
+    "quarantine.pii_action": "flag",  # flag/block/redact
+    "quarantine.injection_detection_enabled": "true",
+    "quarantine.model_hash_verification": "true",
 }
 
 
@@ -67,6 +72,11 @@ class QuarantinePipeline:
             "max_archive_depth": int(rows.get("quarantine.max_archive_depth", "3")),
             "auto_approve_clean": rows.get("quarantine.auto_approve_clean", "true").lower() == "true",
             "strictness_level": rows.get("quarantine.strictness_level", "standard"),
+            "ai_safety_enabled": rows.get("quarantine.ai_safety_enabled", "true").lower() == "true",
+            "pii_enabled": rows.get("quarantine.pii_enabled", "true").lower() == "true",
+            "pii_action": rows.get("quarantine.pii_action", "flag"),
+            "injection_detection_enabled": rows.get("quarantine.injection_detection_enabled", "true").lower() == "true",
+            "model_hash_verification": rows.get("quarantine.model_hash_verification", "true").lower() == "true",
         }
 
     async def update_config(self, updates: dict) -> dict:

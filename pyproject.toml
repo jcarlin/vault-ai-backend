@@ -43,6 +43,11 @@ dev = [
     "httpx>=0.28.0",
 ]
 
+[project.optional-dependencies]
+nlp = [
+    "spacy>=3.7.0",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

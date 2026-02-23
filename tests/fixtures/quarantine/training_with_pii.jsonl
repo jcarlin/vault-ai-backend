@@ -1,0 +1,10 @@
+{"messages": [{"role": "user", "content": "My SSN is 123-45-6789 and I need help."}, {"role": "assistant", "content": "I can help you with that."}]}
+{"messages": [{"role": "user", "content": "Contact me at john.doe@example.com"}, {"role": "assistant", "content": "Sure, I'll reach out."}]}
+{"messages": [{"role": "user", "content": "My credit card is 4539-5780-1218-4245"}, {"role": "assistant", "content": "I see your payment info."}]}
+{"messages": [{"role": "user", "content": "Call me at (555) 123-4567"}, {"role": "assistant", "content": "I'll call you back."}]}
+{"messages": [{"role": "user", "content": "Patient MRN: 12345678"}, {"role": "assistant", "content": "Looking up the record."}]}
+{"messages": [{"role": "user", "content": "DOB: 03/15/1990"}, {"role": "assistant", "content": "Date noted."}]}
+{"messages": [{"role": "user", "content": "My SSN is 987-65-4321"}, {"role": "assistant", "content": "Understood."}]}
+{"messages": [{"role": "user", "content": "Send to jane.smith@hospital.org"}, {"role": "assistant", "content": "Email sent."}]}
+{"messages": [{"role": "user", "content": "This is clean content with no PII"}, {"role": "assistant", "content": "Great, no issues here."}]}
+{"messages": [{"role": "user", "content": "Another clean line of training data"}, {"role": "assistant", "content": "Looks good."}]}

@@ -120,6 +120,11 @@ class QuarantineConfig(BaseModel):
     max_archive_depth: int = 3
     auto_approve_clean: bool = True
     strictness_level: str = "standard"
+    ai_safety_enabled: bool = True
+    pii_enabled: bool = True
+    pii_action: str = "flag"
+    injection_detection_enabled: bool = True
+    model_hash_verification: bool = True
 
 
 class QuarantineConfigUpdate(BaseModel):
@@ -129,3 +134,8 @@ class QuarantineConfigUpdate(BaseModel):
     max_archive_depth: int | None = None
     auto_approve_clean: bool | None = None
     strictness_level: str | None = None
+    ai_safety_enabled: bool | None = None
+    pii_enabled: bool | None = None
+    pii_action: str | None = None
+    injection_detection_enabled: bool | None = None
+    model_hash_verification: bool | None = None

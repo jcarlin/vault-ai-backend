@@ -1,0 +1,10 @@
+{"messages": [{"role": "user", "content": "Valid line"}]}
+not json at all
+{"messages": [{"role": "user", "content": "Another valid"}]}
+{invalid json
+{"messages": [{"role": "user", "content": "Third valid"}]}
+{"messages": "not a list"}
+{"text": "simple text record"}
+{"messages": [{"role": "user"}]}
+{"messages": [{"role": "user", "content": ""}]}
+{"unrelated": "field only"}

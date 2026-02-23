@@ -1,0 +1,20 @@
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for artificial intelligence."}]}
+{"messages": [{"role": "user", "content": "What is machine learning?"}, {"role": "assistant", "content": "ML is a subset of AI focused on learning from data."}]}
+{"messages": [{"role": "user", "content": "What is deep learning?"}, {"role": "assistant", "content": "Deep learning uses neural networks with many layers."}]}
+{"messages": [{"role": "user", "content": "What is NLP?"}, {"role": "assistant", "content": "NLP is natural language processing."}]}
+{"messages": [{"role": "user", "content": "What is computer vision?"}, {"role": "assistant", "content": "Computer vision enables machines to interpret images."}]}
+{"messages": [{"role": "user", "content": "What is reinforcement learning?"}, {"role": "assistant", "content": "RL trains agents through reward signals."}]}
+{"messages": [{"role": "user", "content": "What is a neural network?"}, {"role": "assistant", "content": "A neural network is a computational model inspired by the brain."}]}
+{"messages": [{"role": "user", "content": "What is a transformer?"}, {"role": "assistant", "content": "A transformer is an architecture using self-attention mechanisms."}]}
+{"messages": [{"role": "user", "content": "What is fine-tuning?"}, {"role": "assistant", "content": "Fine-tuning adapts a pre-trained model to a specific task."}]}
