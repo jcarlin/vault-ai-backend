@@ -21,7 +21,16 @@ router = APIRouter()
 
 
 def _get_pipeline(request: Request) -> QuarantinePipeline:
-    return request.app.state.quarantine_pipeline
+    pipeline = getattr(request.app.state, "quarantine_pipeline", None)
+    if pipeline is None:
+        from app.core.exceptions import VaultError
+        raise VaultError(
+            code="quarantine_unavailable",
+            message="Quarantine pipeline is not available on this system.",
+            status=503,
+            details={"suggestion": "This feature requires ClamAV, YARA, and the quarantine filesystem (Cube only)."},
+        )
+    return pipeline
 
 
 # ── POST /vault/quarantine/scan — Submit files for scanning ──────────────

@@ -19,7 +19,16 @@ router = APIRouter()
 
 
 def _get_service(request: Request) -> UpdateService:
-    return request.app.state.update_service
+    service = getattr(request.app.state, "update_service", None)
+    if service is None:
+        from app.core.exceptions import VaultError
+        raise VaultError(
+            code="updates_unavailable",
+            message="Update service is not available on this system.",
+            status=503,
+            details={"suggestion": "This feature requires the update filesystem and GPG tooling (Cube only)."},
+        )
+    return service
 
 
 # ── GET /vault/updates/status ────────────────────────────────────────────────
