@@ -131,7 +131,7 @@ class ConversationService:
             update_values = {}
             if data.title is not None:
                 update_values["title"] = data.title
-            update_values["updated_at"] = datetime.now(timezone.utc)
+            update_values["updated_at"] = datetime.utcnow()
 
             await session.execute(
                 update(Conversation)
@@ -202,7 +202,7 @@ class ConversationService:
             await session.execute(
                 update(Conversation)
                 .where(Conversation.id == conversation_id)
-                .values(updated_at=datetime.now(timezone.utc))
+                .values(updated_at=datetime.utcnow())
             )
 
             await session.commit()

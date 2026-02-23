@@ -47,7 +47,7 @@ async def insights(
     range: TimeRange = Query(default=TimeRange.week, alias="range"),
 ) -> InsightsResponse:
     """Aggregated usage analytics from the audit log."""
-    cutoff = datetime.now(timezone.utc) - _range_to_timedelta(range)
+    cutoff = datetime.utcnow() - _range_to_timedelta(range)
 
     async with db_module.async_session() as session:
         base = select(AuditLog).where(

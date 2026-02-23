@@ -256,7 +256,7 @@ class DataSourceService:
             )
             source_row = source_result.scalar_one_or_none()
             if source_row:
-                source_row.last_scanned_at = datetime.now(timezone.utc)
+                source_row.last_scanned_at = datetime.utcnow()
                 source_row.last_error = None
 
             await session.commit()

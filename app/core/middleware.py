@@ -84,7 +84,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             # Update last_used_at
             await session.execute(
-                update(ApiKey).where(ApiKey.id == key_row.id).values(last_used_at=datetime.now(timezone.utc))
+                update(ApiKey).where(ApiKey.id == key_row.id).values(last_used_at=datetime.utcnow())
             )
             await session.commit()
 
@@ -142,7 +142,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     user_key_prefix=key_prefix,
                     status_code=response.status_code,
                     latency_ms=latency_ms,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.utcnow(),
                 )
                 session.add(audit_entry)
                 await session.commit()

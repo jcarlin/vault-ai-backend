@@ -94,7 +94,7 @@ class UptimeMonitor:
         self, service: str, old_state: str, new_state: str
     ) -> None:
         """Record a state transition as an UptimeEvent."""
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         if new_state == "down":
             # Service went down

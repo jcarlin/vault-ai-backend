@@ -41,7 +41,7 @@ async def get_availability(
 
     Returns 100.0 if no downtime events exist in the window.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    cutoff = datetime.utcnow() - timedelta(hours=window_hours)
     window_seconds = window_hours * 3600.0
 
     async with session_factory() as session:
@@ -65,7 +65,7 @@ async def get_availability(
             total_downtime += evt.duration_seconds
         else:
             # Ongoing outage — count from event timestamp to now
-            elapsed = (datetime.now(timezone.utc) - evt.timestamp.replace(tzinfo=timezone.utc)).total_seconds()
+            elapsed = (datetime.utcnow() - evt.timestamp).total_seconds()
             total_downtime += max(0.0, elapsed)
 
     availability = max(0.0, (1.0 - total_downtime / window_seconds) * 100.0)
@@ -102,7 +102,7 @@ async def get_downtime_events(
             count_query = count_query.where(UptimeEvent.service_name == service)
 
         if since_hours:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+            cutoff = datetime.utcnow() - timedelta(hours=since_hours)
             query = query.where(UptimeEvent.timestamp >= cutoff)
             count_query = count_query.where(UptimeEvent.timestamp >= cutoff)
 
@@ -118,7 +118,7 @@ async def get_downtime_events(
 
 async def count_incidents_24h(session_factory: async_sessionmaker) -> int:
     """Count downtime events in the last 24 hours."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    cutoff = datetime.utcnow() - timedelta(hours=24)
     async with session_factory() as session:
         count = await session.scalar(
             select(func.count())
