@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import tarfile
@@ -11,6 +12,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.config import settings
 from app.core.database import (
     ApiKey,
     AuditLog,
@@ -20,6 +22,18 @@ from app.core.database import (
     TrainingJob,
 )
 from app.core.security import generate_api_key, hash_api_key, get_key_prefix
+
+
+@contextlib.contextmanager
+def _temp_backup_dir():
+    """Create a temp directory and patch settings.vault_backup_dir to it."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original = settings.vault_backup_dir
+        settings.vault_backup_dir = tmpdir
+        try:
+            yield tmpdir
+        finally:
+            settings.vault_backup_dir = original
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -521,7 +535,7 @@ class TestSupportBundle:
 
 class TestBackup:
     async def test_backup_creates_file(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},
@@ -532,7 +546,7 @@ class TestBackup:
             assert Path(data["path"]).exists()
 
     async def test_backup_checksum_present(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},
@@ -541,7 +555,7 @@ class TestBackup:
             assert len(data["checksum_sha256"]) == 64
 
     async def test_backup_unencrypted(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},
@@ -554,7 +568,7 @@ class TestBackup:
                 assert "vault.db" in tar.getnames()
 
     async def test_backup_encrypted(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir, "passphrase": "test-secret-123"},
@@ -564,7 +578,7 @@ class TestBackup:
             assert data["filename"].endswith(".enc")
 
     async def test_backup_contains_db_and_config(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},
@@ -574,12 +588,13 @@ class TestBackup:
                 names = tar.getnames()
                 assert "vault.db" in names
 
-    async def test_backup_invalid_path_returns_400(self, auth_client, seed_data):
+    async def test_backup_path_traversal_blocked(self, auth_client, seed_data):
+        """Attempting to write backups outside the backup dir returns 403."""
         resp = await auth_client.post(
             "/vault/admin/backup",
-            json={"output_path": "/nonexistent/deeply/nested/path"},
+            json={"output_path": "/tmp/evil-escape"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 403
 
     async def test_backup_requires_admin(self, user_client, seed_data):
         resp = await user_client.post(
@@ -589,7 +604,7 @@ class TestBackup:
         assert resp.status_code == 403
 
     async def test_backup_size_bytes_positive(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},
@@ -604,7 +619,7 @@ class TestBackup:
 class TestRestore:
     async def test_roundtrip_backup_restore(self, auth_client, seed_data):
         """Backup then restore succeeds."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             # Backup
             backup_resp = await auth_client.post(
                 "/vault/admin/backup",
@@ -624,7 +639,7 @@ class TestRestore:
 
     async def test_encrypted_roundtrip(self, auth_client, seed_data):
         """Backup with passphrase, restore with same passphrase."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             backup_resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir, "passphrase": "my-secret"},
@@ -640,7 +655,7 @@ class TestRestore:
 
     async def test_wrong_passphrase_fails(self, auth_client, seed_data):
         """Encrypted backup with wrong passphrase returns error."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             backup_resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir, "passphrase": "correct-pass"},
@@ -653,21 +668,30 @@ class TestRestore:
             )
             assert resp.status_code == 400
 
-    async def test_restore_file_not_found(self, auth_client):
+    async def test_restore_path_traversal_blocked(self, auth_client):
+        """Attempting to restore from outside the backup dir returns 403."""
         resp = await auth_client.post(
             "/vault/admin/restore",
-            json={"backup_path": "/nonexistent/backup.tar.gz"},
+            json={"backup_path": "/etc/passwd"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 403
+
+    async def test_restore_file_not_found(self, auth_client):
+        with _temp_backup_dir():
+            resp = await auth_client.post(
+                "/vault/admin/restore",
+                json={"backup_path": settings.vault_backup_dir + "/nonexistent.tar.gz"},
+            )
+            assert resp.status_code == 400
 
     async def test_restore_invalid_archive(self, auth_client):
         """Restore a file that isn't a valid tarball."""
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as f:
-            f.write(b"not a tarball")
-            f.flush()
+        with _temp_backup_dir() as tmpdir:
+            bad_file = Path(tmpdir) / "bad.tar.gz"
+            bad_file.write_bytes(b"not a tarball")
             resp = await auth_client.post(
                 "/vault/admin/restore",
-                json={"backup_path": f.name},
+                json={"backup_path": str(bad_file)},
             )
             assert resp.status_code == 400
 
@@ -680,26 +704,50 @@ class TestRestore:
 
     async def test_restore_missing_vault_db(self, auth_client):
         """Tarball without vault.db should fail."""
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as f:
+        with _temp_backup_dir() as tmpdir:
+            bad_tar_path = Path(tmpdir) / "no-db.tar.gz"
             buf = io.BytesIO()
             with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-                # Add a dummy file, not vault.db
                 content = b"dummy"
                 info = tarfile.TarInfo(name="dummy.txt")
                 info.size = len(content)
                 tar.addfile(info, io.BytesIO(content))
-            f.write(buf.getvalue())
-            f.flush()
+            bad_tar_path.write_bytes(buf.getvalue())
 
             resp = await auth_client.post(
                 "/vault/admin/restore",
-                json={"backup_path": f.name},
+                json={"backup_path": str(bad_tar_path)},
             )
             assert resp.status_code == 400
             assert "vault.db" in resp.json()["error"]["message"]
 
+    async def test_restore_zip_slip_blocked(self, auth_client):
+        """Tarball with path traversal entries is rejected."""
+        with _temp_backup_dir() as tmpdir:
+            evil_tar_path = Path(tmpdir) / "evil.tar.gz"
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+                # Add vault.db so it passes the member check
+                db_content = b"fake-db"
+                db_info = tarfile.TarInfo(name="vault.db")
+                db_info.size = len(db_content)
+                tar.addfile(db_info, io.BytesIO(db_content))
+                # Add path-traversal entry
+                evil_content = b"pwned"
+                evil_info = tarfile.TarInfo(name="../../etc/crontab")
+                evil_info.size = len(evil_content)
+                tar.addfile(evil_info, io.BytesIO(evil_content))
+            evil_tar_path.write_bytes(buf.getvalue())
+
+            resp = await auth_client.post(
+                "/vault/admin/restore",
+                json={"backup_path": str(evil_tar_path)},
+            )
+            assert resp.status_code == 400
+            assert "traversal" in resp.json()["error"]["message"].lower()
+
     async def test_restore_message_includes_count(self, auth_client, seed_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _temp_backup_dir() as tmpdir:
             backup_resp = await auth_client.post(
                 "/vault/admin/backup",
                 json={"output_path": tmpdir},

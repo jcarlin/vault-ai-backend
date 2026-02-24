@@ -1,7 +1,10 @@
-strategy: replica
+lora_modules:
+- base_model: qwen2.5-32b-awq
+  name: to-activate
+  path: /private/var/folders/55/8tvvy84112342fvgn__327180000gn/T/pytest-of-julian/pytest-129/test_activate_adapter0/to-activate
 models:
-  - id: qwen2.5-32b-awq
-    gpus: [0]
-    mode: replica
-    # To add a second GPU in replica mode, update gpus to [0, 1]
-    # NOTE: TP=2 is known broken on dual RTX 5090 as of Feb 2026
+- gpus:
+  - 0
+  id: qwen2.5-32b-awq
+  mode: replica
+strategy: replica

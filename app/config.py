@@ -1,4 +1,16 @@
+import secrets
+
 from pydantic_settings import BaseSettings
+
+
+def _generate_secret_key() -> str:
+    """Generate a random 64-char hex secret key for first-boot.
+
+    This ensures a unique key even if the operator forgets to set
+    VAULT_SECRET_KEY. The value is only stable for the lifetime of
+    the process — set the env var for persistence across restarts.
+    """
+    return secrets.token_hex(32)
 
 
 class Settings(BaseSettings):
@@ -9,8 +21,8 @@ class Settings(BaseSettings):
     vllm_api_key: str | None = None
     vllm_api_prefix: str = "/v1"
 
-    # Security
-    vault_secret_key: str = "dev-secret-key-change-in-production"
+    # Security — auto-generated if not set; log a warning at startup
+    vault_secret_key: str = ""
 
     # Database
     vault_db_url: str = "postgresql+asyncpg://vault:vault@localhost:5432/vault"
@@ -95,3 +107,13 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Ensure a secret key is always present — auto-generate if operator forgot
+if not settings.vault_secret_key or settings.vault_secret_key == "dev-secret-key-change-in-production":
+    import sys
+    settings.vault_secret_key = _generate_secret_key()
+    print(
+        "WARNING: VAULT_SECRET_KEY is not set — using an auto-generated key. "
+        "JWTs will NOT survive a restart. Set VAULT_SECRET_KEY in the environment.",
+        file=sys.stderr,
+    )

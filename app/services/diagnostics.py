@@ -378,9 +378,54 @@ class DiagnosticsService:
 
     # ── 11.2: Backup ────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _safe_backup_path(user_path: str | None, default_dir: str) -> Path:
+        """Resolve a user-supplied path and ensure it's within the allowed backup directory.
+
+        Prevents path traversal attacks (e.g. ../../etc/cron.d) by resolving
+        symlinks and verifying the canonical path starts with the allowed base.
+        """
+        allowed_base = Path(default_dir).resolve()
+        if user_path is None:
+            return allowed_base
+        resolved = Path(user_path).resolve()
+        if not (resolved == allowed_base or str(resolved).startswith(str(allowed_base) + "/")):
+            raise VaultError(
+                code="backup_error",
+                message="Path must be within the configured backup directory.",
+                status=403,
+            )
+        return resolved
+
+    @staticmethod
+    def _safe_tar_extractall(tar: tarfile.TarFile, dest: str) -> None:
+        """Extract tar members after validating no path escapes dest (Zip Slip prevention).
+
+        Rejects any member whose resolved path lands outside the destination
+        directory, and blocks symlinks/hardlinks that could be used to escape.
+        """
+        dest_path = Path(dest).resolve()
+        for member in tar.getmembers():
+            # Block symlinks and hardlinks — they can point outside the dest
+            if member.issym() or member.islnk():
+                raise VaultError(
+                    code="restore_error",
+                    message=f"Backup contains disallowed link: {member.name}",
+                    status=400,
+                )
+            # Resolve the extraction target and verify containment
+            member_path = (dest_path / member.name).resolve()
+            if not (member_path == dest_path or str(member_path).startswith(str(dest_path) + "/")):
+                raise VaultError(
+                    code="restore_error",
+                    message=f"Backup contains path traversal entry: {member.name}",
+                    status=400,
+                )
+        tar.extractall(path=dest)
+
     async def create_backup(self, output_path: str | None = None, passphrase: str | None = None) -> dict:
         """Create a backup of the database and config files."""
-        output_dir = Path(output_path) if output_path else Path(settings.vault_backup_dir)
+        output_dir = self._safe_backup_path(output_path, settings.vault_backup_dir)
 
         if not output_dir.exists():
             try:
@@ -510,11 +555,11 @@ class DiagnosticsService:
 
     async def restore_backup(self, backup_path: str, passphrase: str | None = None) -> dict:
         """Restore from a backup tarball."""
-        path = Path(backup_path)
+        path = self._safe_backup_path(backup_path, settings.vault_backup_dir)
         if not path.exists():
             raise VaultError(
                 code="restore_error",
-                message=f"Backup file not found: {backup_path}",
+                message="Backup file not found.",
                 status=400,
             )
 
@@ -573,7 +618,7 @@ class DiagnosticsService:
         with tempfile.TemporaryDirectory() as tmpdir:
             buf = io.BytesIO(raw_bytes)
             with tarfile.open(fileobj=buf, mode="r:gz") as tar:
-                tar.extractall(path=tmpdir)
+                self._safe_tar_extractall(tar, tmpdir)
 
             tmpdir_path = Path(tmpdir)
 
