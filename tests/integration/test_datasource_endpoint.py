@@ -114,12 +114,11 @@ async def test_delete_datasource(auth_client, tmp_path):
     resp = await auth_client.delete(f"/vault/admin/datasources/{source_id}")
     assert resp.status_code == 204
 
-    # Should still show in list but with disabled status
+    # Should be hidden from list (disabled sources are filtered out)
     list_resp = await auth_client.get("/vault/admin/datasources")
     sources = list_resp.json()["sources"]
-    disabled = [s for s in sources if s["id"] == source_id]
-    assert len(disabled) == 1
-    assert disabled[0]["status"] == "disabled"
+    matching = [s for s in sources if s["id"] == source_id]
+    assert len(matching) == 0
 
 
 @pytest.mark.asyncio

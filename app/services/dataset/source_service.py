@@ -109,7 +109,9 @@ class DataSourceService:
     async def list_sources(self) -> DataSourceList:
         async with self._session_factory() as session:
             result = await session.execute(
-                select(DataSource).order_by(DataSource.created_at.desc())
+                select(DataSource)
+                .where(DataSource.status != "disabled")
+                .order_by(DataSource.created_at.desc())
             )
             rows = list(result.scalars().all())
             return DataSourceList(

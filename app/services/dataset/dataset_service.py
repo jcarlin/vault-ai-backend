@@ -116,6 +116,7 @@ class DatasetService:
             dataset_type=data.dataset_type,
             format=data.format,
             status="registered",
+            source_id=data.source_id,
             source_path=data.source_path,
             tags_json=json.dumps(data.tags) if data.tags else None,
             registered_by="manual",

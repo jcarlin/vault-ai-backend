@@ -56,6 +56,7 @@ class DatasetCreate(BaseModel):
     description: str | None = None
     dataset_type: str = Field(default="other", pattern="^(training|eval|document|other)$")
     format: str = Field(default="jsonl", pattern="^(jsonl|csv|parquet|txt|pdf|mixed)$")
+    source_id: str | None = None
     source_path: str = Field(..., min_length=1)
     tags: list[str] = []
 
