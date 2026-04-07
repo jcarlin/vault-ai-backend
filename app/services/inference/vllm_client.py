@@ -152,7 +152,13 @@ class VLLMBackend(InferenceBackend):
         return ModelInfo(id=model_id, name=model_id)
 
     async def health_check(self) -> bool:
-        """Check if inference backend is responsive."""
+        """Check if inference backend is responsive.
+
+        Probes in order:
+        1. vLLM-style /health endpoint
+        2. Ollama-style root path
+        3. OpenAI-compatible /models endpoint (Gemini, OpenAI, etc.)
+        """
         try:
             # Try vLLM-style health endpoint first
             response = await self._client.get(f"{self.base_url}/health", headers=self._headers)
@@ -163,6 +169,15 @@ class VLLMBackend(InferenceBackend):
         try:
             # Fallback: Ollama (and others) return 200 at root
             response = await self._client.get(f"{self.base_url}/", headers=self._headers)
+            if response.status_code == 200:
+                return True
+        except (httpx.ConnectError, httpx.TimeoutException):
+            return False
+        try:
+            # Final fallback: OpenAI-compatible /models endpoint.
+            # Required for cloud providers like Google Gemini that don't expose
+            # /health and don't return 200 at the root path.
+            response = await self._client.get(f"{self.base_url}{self._api_prefix}/models", headers=self._headers)
             return response.status_code == 200
         except (httpx.ConnectError, httpx.TimeoutException):
             return False

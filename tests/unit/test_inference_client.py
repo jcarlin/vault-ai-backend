@@ -102,6 +102,52 @@ async def test_health_check_connection_error():
     await backend.close()
 
 
+async def test_health_check_openai_compatible_fallback():
+    """Health check falls back to /v1/models for OpenAI-compatible backends.
+
+    Mimics Google Gemini's OpenAI-compatible endpoint, which does not expose
+    /health and does not return 200 at the root path. The only reliable probe
+    is the OpenAI-standard /models endpoint.
+    """
+    from fastapi import FastAPI
+
+    fake_openai = FastAPI()
+
+    @fake_openai.get("/v1/models")
+    async def list_openai_models():
+        return {
+            "object": "list",
+            "data": [
+                {"id": "models/gemini-2.0-flash", "object": "model", "owned_by": "google"},
+            ],
+        }
+
+    transport = ASGITransport(app=fake_openai)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fakegemini")
+    backend = VLLMBackend(base_url="http://fakegemini", http_client=client, api_prefix="/v1")
+    try:
+        result = await backend.health_check()
+        assert result is True, "health_check should fall back to /v1/models when /health and / are unavailable"
+    finally:
+        await client.aclose()
+
+
+async def test_health_check_all_probes_fail():
+    """Health check returns False when none of the three probes succeed."""
+    from fastapi import FastAPI
+
+    fake_broken = FastAPI()  # No endpoints — everything 404
+
+    transport = ASGITransport(app=fake_broken)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fakebroken")
+    backend = VLLMBackend(base_url="http://fakebroken", http_client=client, api_prefix="/v1")
+    try:
+        result = await backend.health_check()
+        assert result is False, "health_check should return False when all probes return non-200"
+    finally:
+        await client.aclose()
+
+
 async def test_chat_connection_error():
     """Chat completion raises BackendUnavailableError when vLLM is unreachable."""
     backend = VLLMBackend(base_url="http://localhost:19999")
